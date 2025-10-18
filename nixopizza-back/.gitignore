@@ -43,6 +43,7 @@ coverage/           # Test coverage reports
 .cache/             # Parcel, Babel, etc.
 .temp/              # Temporary files
 *.tmp               # OS/system temp files
+src/uploads/
 
 # ========================
 # Editor & IDE
