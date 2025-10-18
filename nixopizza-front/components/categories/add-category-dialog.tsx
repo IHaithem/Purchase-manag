@@ -293,7 +293,7 @@ export function AddCategoryDialog({ setCategories }: { setCategories: any }) {
           </div>
 
           {/* Budget Allocation Section */}
-          <Card className="bg-gradient-to-br from-muted/30 to-muted/10 border-0">
+          {/* <Card className="bg-gradient-to-br from-muted/30 to-muted/10 border-0">
             <CardContent className="p-6">
               <div className="flex items-center justify-between mb-4">
                 <div>
@@ -357,7 +357,7 @@ export function AddCategoryDialog({ setCategories }: { setCategories: any }) {
                 </div>
               )}
             </CardContent>
-          </Card>
+          </Card> */}
 
           <DialogFooter className="gap-3 pt-4">
             <Button

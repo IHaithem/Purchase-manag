@@ -225,7 +225,7 @@ export function CategoryEditDialog({
           </div>
 
           {/* Budget toggle */}
-          <div className="flex items-center justify-between pt-2">
+          {/* <div className="flex items-center justify-between pt-2">
             <div className="space-y-1">
               <Label
                 htmlFor="budget-toggle"
@@ -242,10 +242,10 @@ export function CategoryEditDialog({
               checked={isBudgetAllocated}
               onCheckedChange={handleBudgetToggle}
             />
-          </div>
+          </div> */}
 
           {/* Budget fields */}
-          {isBudgetAllocated && (
+          {/* {isBudgetAllocated && (
             <div className="space-y-4 p-4 bg-muted/30 rounded-lg border border-border">
               <h3 className="font-medium text-lg">Budget Details</h3>
 
@@ -275,7 +275,7 @@ export function CategoryEditDialog({
                 </div>
               </div>
             </div>
-          )}
+          )} */}
 
           <DialogFooter>
             <Button
