@@ -173,7 +173,7 @@ export function SupplierDetailsDialog({
           {/* Notes */}
           {supplier.notes && (
             <Card>
-              <CardContent className="pt-6">
+              <CardContent className="pt-0">
                 <h4 className="text-lg font-semibold mb-4 flex items-center gap-2">
                   <FileText className="h-5 w-5" />
                   Notes
