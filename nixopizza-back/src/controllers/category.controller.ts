@@ -30,7 +30,7 @@ export const createCategory = async (
   try {
     const { name, description } = req.body;
 
-    if (!name || !description) {
+    if (!name) {
       res.status(400).json({ message: "All fields must fill" });
       return;
     }
