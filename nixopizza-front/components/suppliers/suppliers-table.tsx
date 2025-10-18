@@ -32,7 +32,7 @@ import {
   Package,
 } from "lucide-react";
 import { SupplierEditDialog } from "./supplier-edit-dialog";
-import { SupplierOrdersDialog } from "./supplier-orders-dialog";
+import { SupplierDetailsDialog } from "./supplier-details-dialog";
 import { deleteSupplier, get_all_suppliers } from "@/lib/apis/suppliers";
 import toast from "react-hot-toast";
 import { ISupplier } from "@/app/dashboard/suppliers/page";
@@ -225,7 +225,7 @@ export function SuppliersTable({
           </div>
         </CardContent>
       </Card>
-      <SupplierOrdersDialog
+      <SupplierDetailsDialog
         supplier={selectedSupplierOrder}
         orders={selectedSupplierOrder}
         open={isOrderDialogOpen}
