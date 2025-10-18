@@ -16,6 +16,8 @@ import { Label } from "@/components/ui/label";
 import { Upload, X, Loader2, CheckCircle } from "lucide-react";
 import toast from "react-hot-toast";
 import { IOrder } from "@/app/dashboard/purchases/page";
+import { confirmOrder } from "@/lib/apis/purchase-list";
+
 
 interface ConfirmOrderDialogProps {
   order: IOrder | null;
@@ -62,51 +64,51 @@ export function ConfirmOrderDialog({
     setBillPreview(null);
   };
 
-  const handleConfirm = async () => {
-    if (!billFile) {
-      toast.error("Please upload a bill");
-      return;
-    }
+const handleConfirm = async () => {
+  if (!billFile) {
+    toast.error("Please upload a bill");
+    return;
+  }
 
-    if (!totalAmount || parseFloat(totalAmount) <= 0) {
-      toast.error("Please enter a valid total amount");
-      return;
-    }
+  if (!totalAmount || parseFloat(totalAmount) <= 0) {
+    toast.error("Please enter a valid total amount");
+    return;
+  }
 
-    if (!order) return;
+  if (!order) return;
 
-    setIsLoading(true);
-    try {
-      const formData = new FormData();
-      formData.append("image", billFile);
-      formData.append("totalAmount", totalAmount);
+  setIsLoading(true);
+  try {
+    const formData = new FormData();
+    formData.append("image", billFile);
+    formData.append("totalAmount", totalAmount);
 
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_BASE_URL}/api/orders/${order._id}/confirm`,
-        {
-          method: "POST",
-          credentials: "include",
-          body: formData,
-        }
-      );
+    const { success, order: updatedOrder, message } = await confirmOrder(
+      order._id,
+      formData
+    );
 
-      const data = await response.json();
+    if (success && updatedOrder) {
+  toast.success("Order confirmed successfully");
+  onOrderUpdated(updatedOrder);
+  onOpenChange(false);
+  resetForm();
 
-      if (response.ok && data.order) {
-        toast.success("Order confirmed successfully");
-        onOrderUpdated(data.order);
-        onOpenChange(false);
-        resetForm();
-      } else {
-        toast.error(data.message || "Failed to confirm order");
-      }
-    } catch (error) {
-      console.error("Error confirming order:", error);
-      toast.error("Failed to confirm order");
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  // ✅ Refresh the page after confirmation
+  setTimeout(() => {
+    window.location.reload();
+  }, 800);
+} else {
+  toast.error(message || "Failed to confirm order");
+}
+  } catch (error) {
+    console.error("Error confirming order:", error);
+    toast.error("Failed to confirm order");
+  } finally {
+    setIsLoading(false);
+  }
+};
+
 
   const resetForm = () => {
     setTotalAmount("");

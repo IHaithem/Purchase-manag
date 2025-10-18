@@ -383,7 +383,7 @@ export function PurchaseOrderDialog({
 
             {/* Actions */}
             <div className="flex gap-2 justify-end">
-              {order.status === "pending" && (
+              {order.status === "assigned" && (
                 <>
                   {!hasBill ? (
                     billFile ? (

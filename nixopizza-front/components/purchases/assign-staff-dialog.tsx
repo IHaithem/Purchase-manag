@@ -13,6 +13,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { getStuff } from "@/lib/apis/stuff";
+import { assignOrder } from "@/lib/apis/purchase-list";
+
 
 import {
   Select,
@@ -78,45 +80,43 @@ const fetchStaff = async () => {
     }
   }, [open]);
 
-  const handleAssign = async () => {
-    if (!selectedStaffId) {
-      toast.error("Please select a staff member");
-      return;
-    }
+const handleAssign = async () => {
+  if (!selectedStaffId) {
+    toast.error("Please select a staff member");
+    return;
+  }
 
-    if (!order) return;
+  if (!order) return;
 
-    setIsLoading(true);
-    try {
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_BASE_URL}/api/orders/${order._id}/assign`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          credentials: "include",
-          body: JSON.stringify({ staffId: selectedStaffId }),
-        }
-      );
+  setIsLoading(true);
+  try {
+    const { success, order: updatedOrder, message } = await assignOrder(
+      order._id,
+      selectedStaffId
+    );
 
-      const data = await response.json();
+    if (success && updatedOrder) {
+  toast.success("Order assigned successfully");
+  onOrderUpdated(updatedOrder);
+  onOpenChange(false);
+  setSelectedStaffId("");
 
-      if (response.ok && data.order) {
-        toast.success("Order assigned successfully");
-        onOrderUpdated(data.order);
-        onOpenChange(false);
-        setSelectedStaffId("");
-      } else {
-        toast.error(data.message || "Failed to assign order");
-      }
-    } catch (error) {
-      console.error("Error assigning order:", error);
-      toast.error("Failed to assign order");
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  // ✅ Refresh page after successful assignment
+  setTimeout(() => {
+    window.location.reload();
+  }, 800);
+} else {
+  toast.error(message || "Failed to assign order");
+}
+
+  } catch (error) {
+    console.error("Error assigning order:", error);
+    toast.error("Failed to assign order");
+  } finally {
+    setIsLoading(false);
+  }
+};
+
 
   if (!order) return null;
 
