@@ -19,9 +19,11 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { MoreHorizontal, Eye, Download, Receipt, Package } from "lucide-react";
+import { MoreHorizontal, Eye, Download, Receipt, Package, UserPlus, CheckCircle, DollarSign } from "lucide-react";
 import { PurchaseOrderDialog } from "@/components/purchases/purchase-order-dialog";
 import { ReceiptPreviewDialog } from "./receipt-preview-dialog";
+import { AssignStaffDialog } from "./assign-staff-dialog";
+import { ConfirmOrderDialog } from "./confirm-order-dialog";
 import { Pagination } from "@/components/ui/pagination";
 import { IOrder } from "@/app/dashboard/purchases/page";
 
@@ -42,41 +44,104 @@ export function PurchaseListsTable({
   limit: number;
   setLimit: any;
 }) {
-  const [selectedOrder, setSelectedOrder] = useState<
-    (typeof purchaseOrders)[0] | null
-  >(null);
+  const [selectedOrder, setSelectedOrder] = useState<IOrder | null>(null);
   const [isOrderDialogOpen, setIsOrderDialogOpen] = useState(false);
   const [isReceiptDialogOpen, setIsReceiptDialogOpen] = useState(false);
+  const [isAssignDialogOpen, setIsAssignDialogOpen] = useState(false);
+  const [isConfirmDialogOpen, setIsConfirmDialogOpen] = useState(false);
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case "pending":
+      case "not assigned":
         return "secondary";
+      case "assigned":
+        return "default";
       case "confirmed":
-        return "destructive";
-      case "paid":
         return "outline";
+      case "paid":
+        return "default";
+      default:
+        return "secondary";
     }
   };
 
-  const handleViewOrder = (order: (typeof purchaseOrders)[0]) => {
+  const handleViewOrder = (order: IOrder) => {
     setSelectedOrder(order);
     setIsOrderDialogOpen(true);
   };
 
-  const handleViewReceipt = (order: (typeof purchaseOrders)[0]) => {
+  const handleViewReceipt = (order: IOrder) => {
     setSelectedOrder(order);
     setIsReceiptDialogOpen(true);
   };
 
-  const handleExportOrder = (orderId: string) => {
-    console.log("Exporting order:", orderId);
-    // Simulate PDF export
+  const handleAssignStaff = (order: IOrder) => {
+    setSelectedOrder(order);
+    setIsAssignDialogOpen(true);
   };
 
-  const handleSendOrder = (orderId: string) => {
-    console.log("Sending order:", orderId);
-    // Simulate sending order to supplier
+  const handleConfirmOrder = (order: IOrder) => {
+    setSelectedOrder(order);
+    setIsConfirmDialogOpen(true);
+  };
+
+  const handleOrderUpdated = (updatedOrder: IOrder) => {
+    setPurchaseOrders((prevOrders: IOrder[]) =>
+      prevOrders.map((order) =>
+        order._id === updatedOrder._id ? updatedOrder : order
+      )
+    );
+  };
+
+  const handleExportOrder = (orderId: string) => {
+    console.log("Exporting order:", orderId);
+    // Implement PDF export
+  };
+
+  // Get action button based on order status
+  const getStatusAction = (order: IOrder) => {
+    switch (order.status) {
+      case "not assigned":
+        return (
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => handleAssignStaff(order)}
+            className="gap-2"
+          >
+            <UserPlus className="h-3 w-3" />
+            Assign
+          </Button>
+        );
+      case "assigned":
+        return (
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => handleConfirmOrder(order)}
+            className="gap-2"
+          >
+            <CheckCircle className="h-3 w-3" />
+            Confirm
+          </Button>
+        );
+      case "confirmed":
+        return (
+          <Badge variant="outline" className="gap-1">
+            <CheckCircle className="h-3 w-3" />
+            Ready for Payment
+          </Badge>
+        );
+      case "paid":
+        return (
+          <Badge variant="default" className="gap-1">
+            <DollarSign className="h-3 w-3" />
+            Paid
+          </Badge>
+        );
+      default:
+        return null;
+    }
   };
 
   if (purchaseOrders.length === 0) {
@@ -113,10 +178,11 @@ export function PurchaseListsTable({
                 <TableRow>
                   <TableHead>Order ID</TableHead>
                   <TableHead>Supplier</TableHead>
+                  <TableHead>Staff</TableHead>
                   <TableHead>Items</TableHead>
                   <TableHead>Total Value</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead>Delivery Date</TableHead>
+                  <TableHead>Action</TableHead>
                   <TableHead className="w-[50px]"></TableHead>
                   <TableHead className="w-[50px]"></TableHead>
                 </TableRow>
@@ -159,6 +225,27 @@ export function PurchaseListsTable({
                       </div>
                     </TableCell>
                     <TableCell>
+                      {order.staffId ? (
+                        <div className="flex items-center gap-2">
+                          <img
+                            src={
+                              process.env.NEXT_PUBLIC_BASE_URL +
+                              order.staffId?.avatar
+                            }
+                            alt={order.staffId?.fullname}
+                            className="w-8 h-8 rounded-full object-cover"
+                          />
+                          <span className="text-sm">
+                            {order.staffId?.fullname}
+                          </span>
+                        </div>
+                      ) : (
+                        <span className="text-muted-foreground text-sm">
+                          Not assigned
+                        </span>
+                      )}
+                    </TableCell>
+                    <TableCell>
                       <span className="font-medium">{order.items.length}</span>
                       <span className="text-muted-foreground text-sm ml-1">
                         items
@@ -176,20 +263,18 @@ export function PurchaseListsTable({
                         {order.status}
                       </Badge>
                     </TableCell>
+                    <TableCell>{getStatusAction(order)}</TableCell>
                     <TableCell>
-                      {order.paidDate
-                        ? new Date(order.paidDate).toLocaleDateString("en-GB")
-                        : "Not Paid"}
-                    </TableCell>
-                    <TableCell>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => handleViewReceipt(order)}
-                        title="Preview Receipt"
-                      >
-                        <Receipt className="h-4 w-4" />
-                      </Button>
+                      {order.bon && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleViewReceipt(order)}
+                          title="Preview Receipt"
+                        >
+                          <Receipt className="h-4 w-4" />
+                        </Button>
+                      )}
                     </TableCell>
                     <TableCell>
                       <DropdownMenu>
@@ -246,6 +331,18 @@ export function PurchaseListsTable({
         order={selectedOrder}
         open={isReceiptDialogOpen}
         onOpenChange={setIsReceiptDialogOpen}
+      />
+      <AssignStaffDialog
+        order={selectedOrder}
+        open={isAssignDialogOpen}
+        onOpenChange={setIsAssignDialogOpen}
+        onOrderUpdated={handleOrderUpdated}
+      />
+      <ConfirmOrderDialog
+        order={selectedOrder}
+        open={isConfirmDialogOpen}
+        onOpenChange={setIsConfirmDialogOpen}
+        onOrderUpdated={handleOrderUpdated}
       />
     </>
   );

@@ -1,3 +1,4 @@
+// models/order.model.ts
 import mongoose, { Schema, Document } from "mongoose";
 
 export interface IOrder extends Document {
@@ -5,13 +6,15 @@ export interface IOrder extends Document {
   orderNumber: string;
   supplierId: Schema.Types.ObjectId;
   staffId: Schema.Types.ObjectId;
-  status: "pending" | "confirmed" | "paid";
+  status: "not assigned" | "assigned" | "confirmed" | "paid";
   totalAmount: number;
   items: Schema.Types.ObjectId[];
   notes: string;
   createdAt: Date;
   updatedAt: Date;
   paidDate: Date;
+  assignedDate: Date;
+  confirmedDate: Date;
 }
 
 const orderSchema = new Schema<IOrder>(
@@ -35,18 +38,17 @@ const orderSchema = new Schema<IOrder>(
     staffId: {
       type: Schema.Types.ObjectId,
       ref: "User",
-      required: [true, "Order Supplier is required"],
     },
 
     status: {
       type: String,
-      enum: ["pending", "confirmed", "paid"],
-      default: "pending",
+      enum: ["not assigned", "assigned", "confirmed", "paid"],
+      default: "not assigned",
     },
 
     totalAmount: {
       type: Number,
-      required: true,
+      default: 0,
       min: 0,
     },
 
@@ -55,8 +57,17 @@ const orderSchema = new Schema<IOrder>(
       ref: "ProductOrder",
       minlength: 1,
     },
+    
     notes: {
       type: String,
+    },
+
+    assignedDate: {
+      type: Date,
+    },
+
+    confirmedDate: {
+      type: Date,
     },
 
     paidDate: {

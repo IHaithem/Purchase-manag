@@ -66,6 +66,7 @@ export function ManualOrderDialog({
 
   // Add state for products and selected products
   const [products, setProducts] = useState<IProduct[]>([]);
+  const [filteredProducts, setFilteredProducts] = useState<IProduct[]>([]);
   const [selectedProducts, setSelectedProducts] = useState<(IProduct | null)[]>(
     [null]
   );
@@ -102,6 +103,26 @@ export function ManualOrderDialog({
     fetchProducts();
   }, []);
 
+  // Filter products based on selected supplier's categories
+  useEffect(() => {
+    if (selectedSupplier && selectedSupplier.categoryIds) {
+      const filtered = products.filter((product) => {
+        // Handle both cases: categoryId as object or string
+        const productCategoryId = typeof product.categoryId === 'object' 
+          ? product.categoryId._id 
+          : product.categoryId;
+        return selectedSupplier.categoryIds.includes(productCategoryId);
+      });
+      setFilteredProducts(filtered);
+      
+      // Reset selected products when supplier changes
+      setSelectedProducts(orderItems.map(() => null));
+      setOrderItems(orderItems.map(item => ({ ...item, productId: "" })));
+    } else {
+      setFilteredProducts([]);
+    }
+  }, [selectedSupplier, products]);
+
   const addOrderItem = () => {
     setOrderItems([
       ...orderItems,
@@ -137,6 +158,14 @@ export function ManualOrderDialog({
       updateOrderItem(index, "productId", product._id);
     } else {
       updateOrderItem(index, "productId", "");
+    }
+  };
+
+  const handleSupplierChange = (supplier: ISupplier | null) => {
+    setSelectedSupplier(supplier);
+    // Clear error when supplier is selected
+    if (supplier) {
+      setError(null);
     }
   };
 
@@ -235,6 +264,7 @@ export function ManualOrderDialog({
       { productId: "", quantity: 1, unitCost: 0, expirationDate: new Date() },
     ]);
     setSelectedProducts([null]);
+    setFilteredProducts([]);
     setNotes("");
     setBillFile(null);
     setBillPreview(null);
@@ -289,13 +319,21 @@ export function ManualOrderDialog({
             </Label>
             <SupplierSelect
               selectedSupplier={selectedSupplier}
-              onSupplierChange={setSelectedSupplier}
+              onSupplierChange={handleSupplierChange}
               placeholder="Select a supplier"
               className="border-2 border-input focus:ring-2 focus:ring-primary/30 rounded-lg"
             />
             {selectedSupplier && (
               <div className="text-sm text-muted-foreground mt-2">
                 Contact: {selectedSupplier.phone} • {selectedSupplier.email}
+              </div>
+            )}
+            {selectedSupplier && filteredProducts.length === 0 && (
+              <div className="bg-yellow-50 text-yellow-700 px-4 py-3 rounded-lg flex items-center gap-2 border border-yellow-200 mt-2">
+                <AlertCircle className="h-4 w-4" />
+                <span className="text-sm">
+                  No products available for this supplier's categories. Please select another supplier or add products to matching categories.
+                </span>
               </div>
             )}
           </div>
@@ -312,7 +350,7 @@ export function ManualOrderDialog({
                   variant="outline"
                   size="sm"
                   onClick={addOrderItem}
-                  disabled={!selectedSupplier || isLoadingProducts}
+                  disabled={!selectedSupplier || isLoadingProducts || filteredProducts.length === 0}
                   className="gap-2 rounded-full border-2 border-input"
                 >
                   <Plus className="h-4 w-4" />
@@ -334,13 +372,20 @@ export function ManualOrderDialog({
                             Product *
                           </Label>
                           <ProductSelect
-                            products={products}
+                            products={filteredProducts}
                             selectedProduct={selectedProducts[index] || null}
                             onProductChange={(product) =>
                               handleProductSelect(index, product)
                             }
-                            placeholder="Select product"
+                            placeholder={
+                              selectedSupplier
+                                ? filteredProducts.length > 0
+                                  ? "Select product"
+                                  : "No products available"
+                                : "Select supplier first"
+                            }
                             className="border-2 border-input focus:ring-2 focus:ring-primary/30 rounded-lg"
+                            disabled={!selectedSupplier || filteredProducts.length === 0}
                           />
                         </div>
                         <div className="w-full sm:w-24 space-y-2">
@@ -361,7 +406,7 @@ export function ManualOrderDialog({
                             className="border-2 border-input focus:ring-2 focus:ring-primary/30 rounded-lg py-5"
                           />
                         </div>
-                        <div className="w-full sm:w-28 space-y-2">
+                        {/* <div className="w-full sm:w-28 space-y-2">
                           <Label className="text-sm font-medium">
                             Unit Price *
                           </Label>
@@ -379,7 +424,7 @@ export function ManualOrderDialog({
                             }
                             className="border-2 border-input focus:ring-2 focus:ring-primary/30 rounded-lg py-5"
                           />
-                        </div>
+                        </div> */}
                         <div className="w-full sm:w-28 space-y-2">
                           <Label className="text-sm font-medium">
                             Expiry Date *
@@ -422,59 +467,59 @@ export function ManualOrderDialog({
           </Card>
 
           {/* Bill Upload */}
-          <div className="space-y-2">
-            <Label htmlFor="bill" className="text-sm font-medium">
-              Bill (Bon) (Optional)
-            </Label>
-            <div className="flex items-center gap-4">
-              {billPreview ? (
-                <div className="relative w-24 h-24 rounded-xl overflow-hidden border-2 border-input shadow-sm">
-                  {billFile?.type === "application/pdf" ? (
-                    <div className="w-full h-full flex items-center justify-center bg-red-50">
-                      <span className="text-red-500 font-medium">PDF</span>
-                    </div>
-                  ) : (
-                    <img
-                      src={billPreview}
-                      alt="Bill preview"
-                      className="w-full h-full object-cover"
-                    />
-                  )}
-                  <button
-                    type="button"
-                    onClick={removeBill}
-                    className="absolute top-1 right-1 bg-destructive text-destructive-foreground rounded-full p-1 hover:opacity-80 shadow-sm"
-                  >
-                    <X className="h-3 w-3" />
-                  </button>
-                </div>
-              ) : (
-                <div className="flex items-center justify-center w-24 h-24 border-2 border-dashed border-input rounded-xl bg-muted/20">
-                  <Upload className="h-8 w-8 text-muted-foreground" />
-                </div>
-              )}
+            {/* <div className="space-y-2">
+              <Label htmlFor="bill" className="text-sm font-medium">
+                Bill (Bon) (Optional)
+              </Label>
+              <div className="flex items-center gap-4">
+                {billPreview ? (
+                  <div className="relative w-24 h-24 rounded-xl overflow-hidden border-2 border-input shadow-sm">
+                    {billFile?.type === "application/pdf" ? (
+                      <div className="w-full h-full flex items-center justify-center bg-red-50">
+                        <span className="text-red-500 font-medium">PDF</span>
+                      </div>
+                    ) : (
+                      <img
+                        src={billPreview}
+                        alt="Bill preview"
+                        className="w-full h-full object-cover"
+                      />
+                    )}
+                    <button
+                      type="button"
+                      onClick={removeBill}
+                      className="absolute top-1 right-1 bg-destructive text-destructive-foreground rounded-full p-1 hover:opacity-80 shadow-sm"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-center w-24 h-24 border-2 border-dashed border-input rounded-xl bg-muted/20">
+                    <Upload className="h-8 w-8 text-muted-foreground" />
+                  </div>
+                )}
 
-              <div className="flex flex-col gap-2">
-                <Label
-                  htmlFor="bill-upload"
-                  className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-md cursor-pointer hover:opacity-90 transition-opacity"
-                >
-                  <Upload className="h-4 w-4" />
-                  {billPreview ? "Change Bill" : "Upload Bill"}
-                </Label>
-                <p className="text-xs text-muted-foreground">
-                  PNG, JPG, PDF up to 5MB
-                </p>
-                <Input
-                  id="bill-upload"
-                  type="file"
-                  accept="image/*,.pdf"
-                  onChange={handleBillUpload}
-                  className="hidden"
-                />
+                <div className="flex flex-col gap-2">
+                  <Label
+                    htmlFor="bill-upload"
+                    className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-md cursor-pointer hover:opacity-90 transition-opacity"
+                  >
+                    <Upload className="h-4 w-4" />
+                    {billPreview ? "Change Bill" : "Upload Bill"}
+                  </Label>
+                  <p className="text-xs text-muted-foreground">
+                    PNG, JPG, PDF up to 5MB
+                  </p>
+                  <Input
+                    id="bill-upload"
+                    type="file"
+                    accept="image/*,.pdf"
+                    onChange={handleBillUpload}
+                    className="hidden"
+                  />
+                </div>
               </div>
-            </div>
-          </div>
+            </div> */}
 
           {/* Notes */}
           <div className="space-y-2">
@@ -508,6 +553,7 @@ export function ManualOrderDialog({
                 orderItems.length === 0 ||
                 isSubmitting ||
                 isLoadingProducts ||
+                filteredProducts.length === 0 ||
                 orderItems.some((item) => !item.productId)
               }
               className="rounded-full px-6 bg-primary hover:bg-primary/90"

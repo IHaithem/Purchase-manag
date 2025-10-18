@@ -24,12 +24,14 @@ export function PurchasesHeader({
   onSupplierChange,
   onSortChange,
   addNewOrder,
+  onRefresh,
 }: {
   onSearchChange: (search: string) => void;
   onStatusChange: (status: string) => void;
   onSupplierChange: (supplierIds: string[]) => void;
   onSortChange: (sort: { sortBy: string; order: string }) => void;
   addNewOrder: (newOrder: IOrder) => void;
+  onRefresh?: () => void;
 }) {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -64,6 +66,15 @@ export function PurchasesHeader({
     onSortChange({ sortBy: field, order: newOrder });
   };
 
+  // Handle new order added
+  const handleNewOrder = (newOrder: IOrder) => {
+    addNewOrder(newOrder);
+    // Trigger refresh if callback provided
+    if (onRefresh) {
+      onRefresh();
+    }
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -76,7 +87,7 @@ export function PurchasesHeader({
           </p>
         </div>
         <div className="flex gap-2">
-          <ManualOrderDialog addNewOrder={addNewOrder} />
+          <ManualOrderDialog addNewOrder={handleNewOrder} />
         </div>
       </div>
 
@@ -98,7 +109,8 @@ export function PurchasesHeader({
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Orders</SelectItem>
-              <SelectItem value="pending">Pending</SelectItem>
+              <SelectItem value="not assigned">Not Assigned</SelectItem>
+              <SelectItem value="assigned">Assigned</SelectItem>
               <SelectItem value="confirmed">Confirmed</SelectItem>
               <SelectItem value="paid">Paid</SelectItem>
             </SelectContent>

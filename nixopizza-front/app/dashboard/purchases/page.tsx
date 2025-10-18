@@ -26,8 +26,8 @@ export interface IOrder {
     email: string;
     _id: string;
     avatar: string;
-  };
-  status: "pending" | "confirmed" | "paid";
+  } | null;
+  status: "not assigned" | "assigned" | "confirmed" | "paid";
   totalAmount: number;
   items: {
     productId: {
@@ -46,6 +46,8 @@ export interface IOrder {
   notes: string;
   createdAt: Date;
   updatedAt: Date;
+  assignedDate: Date;
+  confirmedDate: Date;
   paidDate: Date;
 }
 
@@ -58,6 +60,7 @@ export default function PurchasesPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [limit, setLimit] = useState(10);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
 
   useEffect(() => {
     const fetchOrders = async () => {
@@ -86,10 +89,14 @@ export default function PurchasesPage() {
       }
     };
     fetchOrders();
-  }, [search, status, supplierIds, sort, currentPage, limit]);
+  }, [search, status, supplierIds, sort, currentPage, limit, refreshTrigger]);
 
   const addingNewOrder = (newOrder: IOrder) => {
     setPurchaseOrders((prevOrders) => [newOrder, ...prevOrders]);
+  };
+
+  const handleRefresh = () => {
+    setRefreshTrigger((prev) => prev + 1);
   };
 
   return (
@@ -101,6 +108,7 @@ export default function PurchasesPage() {
           onSupplierChange={setSupplierIds}
           onSortChange={setSort}
           addNewOrder={addingNewOrder}
+          onRefresh={handleRefresh}
         />
         <PurchaseStats />
         <PurchaseListsTable
