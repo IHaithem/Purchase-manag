@@ -22,7 +22,6 @@ const productSchema = new Schema<IProduct>(
     },
     barcode: {
       type: String,
-      required: [true, "BarCode Is Required"],
       unique: true,
     },
     unit: {
