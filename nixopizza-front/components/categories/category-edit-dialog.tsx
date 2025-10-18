@@ -220,7 +220,6 @@ export function CategoryEditDialog({
               placeholder="Enter category description"
               rows={3}
               className="resize-y"
-              required
             />
           </div>
 
