@@ -22,7 +22,7 @@ const productSchema = new Schema<IProduct>(
     },
     barcode: {
       type: String,
-      unique: true,
+      unique: false,
     },
     unit: {
       type: String,

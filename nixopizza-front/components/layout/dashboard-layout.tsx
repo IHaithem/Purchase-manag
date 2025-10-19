@@ -29,7 +29,7 @@ const navigation = [
   { name: "Suppliers", href: "/dashboard/suppliers", icon: Users },
   { name: "Purchase Lists", href: "/dashboard/purchases", icon: ShoppingCart },
   { name: "Low Stock", href: "/dashboard/alerts", icon: AlertTriangle },
-  { name: "Stuff", href: "/dashboard/stuff", icon: Users },
+  { name: "Staff", href: "/dashboard/stuff", icon: Users },
   { name: "Tasks", href: "/dashboard/tasks", icon: Users },
   { name: "Notifications", href: "/dashboard/notifications", icon: Bell },
 ];

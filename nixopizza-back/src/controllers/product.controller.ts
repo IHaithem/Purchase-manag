@@ -65,9 +65,12 @@ export const updateProduct = async (
     if (unit) product.unit = unit;
     if (categoryId) product.categoryId = categoryId;
 
-    if (typeof currentStock === "number") product.currentStock = currentStock;
-    if (typeof minQty === "number") product.minQty = minQty;
-    if (typeof maxQty === "number") product.maxQty = maxQty;
+    //TODO: should be handeled in the front and send it as a number not string
+    if (currentStock){ product.currentStock = Number(currentStock);
+
+    }
+    if (minQty) product.minQty = minQty;
+    if (maxQty === "number") product.maxQty = maxQty;
 
     const filename = req.file?.filename;
     if (filename) {
