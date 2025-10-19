@@ -69,8 +69,9 @@ export const updateProduct = async (
     if (currentStock){ product.currentStock = Number(currentStock);
 
     }
+    //TODO: same here but 
     if (minQty) product.minQty = minQty;
-    if (maxQty === "number") product.maxQty = maxQty;
+    if (maxQty) product.maxQty = maxQty;
 
     const filename = req.file?.filename;
     if (filename) {
