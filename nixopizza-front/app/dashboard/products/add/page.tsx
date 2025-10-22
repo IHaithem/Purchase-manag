@@ -43,7 +43,7 @@ export default function AddProductPage() {
     unit: "",
     currentStock: 0,
     minQty: 0,
-    maxQty: 0,
+    recommendedQty: 0,
     description: "",
   });
 
@@ -231,6 +231,8 @@ export default function AddProductPage() {
                       <SelectItem value="piece">Piece</SelectItem>
                       <SelectItem value="meter">Meter</SelectItem>
                       <SelectItem value="pack">Pack</SelectItem>
+                      <SelectItem value="bottle">bottle</SelectItem>
+
                     </SelectContent>
                   </Select>
                 </div>
@@ -363,16 +365,16 @@ export default function AddProductPage() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="maxQty" className="text-sm font-medium">
-                    Maximum Quantity
+                  <Label htmlFor="recommendedQty" className="text-sm font-medium">
+                    Recommended Quantity
                   </Label>
                   <Input
-                    id="maxQty"
+                    id="recommendedQty"
                     type="number"
-                    value={formData.maxQty}
+                    value={formData.recommendedQty}
                     onChange={(e) =>
                       handleInputChange(
-                        "maxQty",
+                        "recommendedQty",
                         Number.parseInt(e.target.value) || 0
                       )
                     }

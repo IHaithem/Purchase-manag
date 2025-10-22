@@ -7,7 +7,7 @@ export const createProduct = async (
   res: Response
 ): Promise<void> => {
   try {
-    const { name, barcode, unit, categoryId, currentStock, minQty, maxQty } =
+    const { name, barcode, unit, categoryId, currentStock, minQty, recommendedQty } =
       req.body;
 
     if (!name || !unit || !categoryId || !currentStock || !minQty) {
@@ -27,7 +27,7 @@ export const createProduct = async (
       categoryId,
       currentStock,
       minQty,
-      maxQty,
+      recommendedQty,
       imageUrl: `/uploads/products/${filename}`,
     });
 
@@ -48,9 +48,9 @@ export const updateProduct = async (
 ): Promise<void> => {
   try {
     console.log("Product Body : ", req.body);
-    const { name, barcode, unit, categoryId, currentStock, minQty, maxQty } =
+    const { name, barcode, unit, categoryId, currentStock, minQty, recommendedQty } =
       req.body;
-    console.log(name, barcode, unit, categoryId, currentStock, minQty, maxQty);
+    console.log(name, barcode, unit, categoryId, currentStock, minQty, recommendedQty);
 
     console.log("Updated Product");
 
@@ -71,7 +71,7 @@ export const updateProduct = async (
     }
     //TODO: same here but 
     if (minQty) product.minQty = minQty;
-    if (maxQty) product.maxQty = maxQty;
+    if (recommendedQty) product.recommendedQty = recommendedQty;
 
     const filename = req.file?.filename;
     if (filename) {
@@ -241,7 +241,7 @@ export const getLowStockProducts = async (req: Request, res: Response) => {
 export const getOverStockProducts = async (req: Request, res: Response) => {
   try {
     const overStock = await Product.find({
-      $expr: { $gte: ["$currentStock", "$maxQty"] },
+      $expr: { $gte: ["$currentStock", "$recommendedQty"] },
     }).populate("categoryId", "name");
 
     res.status(200).json({

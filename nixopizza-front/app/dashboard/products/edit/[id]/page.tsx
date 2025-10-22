@@ -50,7 +50,7 @@ export default function EditProductPage() {
     },
     currentStock: 0,
     minQty: 0,
-    maxQty: 0,
+    recommendedQty: 0,
     barcode: "",
     unit: "",
     image: null,
@@ -327,6 +327,8 @@ export default function EditProductPage() {
                     <SelectItem value="piece">Piece</SelectItem>
                     <SelectItem value="meter">Meter</SelectItem>
                     <SelectItem value="pack">Pack</SelectItem>
+                    <SelectItem value="bottle">bottle</SelectItem>
+                    
                   </SelectContent>
                 </Select>
               </div>
@@ -392,16 +394,16 @@ export default function EditProductPage() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="maxQty" className="text-sm font-medium">
-                  Maximum Quantity
+                <Label htmlFor="recommendedQty" className="text-sm font-medium">
+                  Recommended Quantity
                 </Label>
                 <Input
-                  id="maxQty"
+                  id="recommendedQty"
                   type="number"
-                  value={formData.maxQty}
+                  value={formData.recommendedQty}
                   onChange={(e) =>
                     handleInputChange(
-                      "maxQty",
+                      "recommendedQty",
                       Number.parseInt(e.target.value) || 0
                     )
                   }

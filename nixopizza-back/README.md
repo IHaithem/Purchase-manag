@@ -314,12 +314,12 @@ interface IUser {
 interface IProduct {
   name: string;
   barcode: string;
-  unit: "liter" | "kilogram" | "box" | "piece" | "meter" | "pack";
+  unit: "liter" | "kilogram" | "box" | "piece" | "meter" | "pack"| "bottle";
   categoryId: ObjectId;
   imageUrl: string;
   currentStock: number;
   minQty: number;
-  maxQty: number;
+  recommendedQty: number;
   createdAt: Date;
   updatedAt: Date;
 }

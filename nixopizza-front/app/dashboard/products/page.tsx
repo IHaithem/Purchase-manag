@@ -20,7 +20,7 @@ export interface IProduct {
   imageUrl: string;
   currentStock: number;
   minQty: number;
-  maxQty: number;
+  recommendedQty: number;
   createdAt?: Date;
   updatedAt?: Date;
 }

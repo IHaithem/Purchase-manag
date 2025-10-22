@@ -3,12 +3,12 @@ import { Schema, model, Document, MongooseError } from "mongoose";
 export interface IProduct extends Document {
   name: string;
   barcode: string;
-  unit: "liter" | "kilogram" | "box" | "piece" | "meter" | "pack";
+  unit: "liter" | "kilogram" | "box" | "piece" | "meter" | "pack"| "bottle";
   categoryId: Schema.Types.ObjectId;
   imageUrl: string;
   currentStock: number;
   minQty: number;
-  maxQty: number;
+  recommendedQty: number;
   createdAt?: Date;
   updatedAt?: Date;
 }
@@ -26,7 +26,7 @@ const productSchema = new Schema<IProduct>(
     },
     unit: {
       type: String,
-      enum: ["liter", "kilogram", "box", "piece", "meter", "pack"],
+      enum: ["liter", "kilogram", "box", "piece", "meter", "pack","bottle"],
     },
     categoryId: {
       type: Schema.Types.ObjectId,
@@ -46,7 +46,7 @@ const productSchema = new Schema<IProduct>(
       type: Number,
       default: 0,
     },
-    maxQty: {
+    recommendedQty: {
       type: Number,
       default: 0,
     },
