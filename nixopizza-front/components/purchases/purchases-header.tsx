@@ -10,34 +10,58 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Search, Filter, ArrowUpDown } from "lucide-react";
-import { useState } from "react";
+import { Search, Filter, ArrowUpDown, Calendar as CalendarIcon, X } from "lucide-react";
+import { useEffect, useState } from "react";
 import { GeneratePurchaseListDialog } from "./generate-purchase-list-dialog";
 import { ManualOrderDialog } from "./manual-order-dialog";
 import { MultiSupplierSelect } from "@/components/ui/multi-supplier-select";
 import { ISupplier } from "@/app/dashboard/suppliers/page";
 import { IOrder } from "@/app/dashboard/purchases/page";
+import { Calendar } from "@/components/ui/calendar";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { cn } from "@/lib/utils";
+import { format } from "date-fns";
 
 export function PurchasesHeader({
   onSearchChange,
   onStatusChange,
   onSupplierChange,
   onSortChange,
+  onDateRangeChange,
   addNewOrder,
   onRefresh,
+  initialStatus = "all",
+  initialDateRange = { from: null, to: null },
 }: {
   onSearchChange: (search: string) => void;
   onStatusChange: (status: string) => void;
   onSupplierChange: (supplierIds: string[]) => void;
   onSortChange: (sort: { sortBy: string; order: string }) => void;
+  onDateRangeChange: (range: { from: Date | null; to: Date | null }) => void;
   addNewOrder: (newOrder: IOrder) => void;
   onRefresh?: () => void;
+  initialStatus?: string;
+  initialDateRange?: { from: Date | null; to: Date | null };
 }) {
   const [searchQuery, setSearchQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState(initialStatus);
   const [selectedSuppliers, setSelectedSuppliers] = useState<ISupplier[]>([]);
   const [sortBy, setSortBy] = useState("createdAt");
   const [order, setOrder] = useState("desc");
+  const [dateRange, setDateRange] = useState<{ from: Date | null; to: Date | null }>(initialDateRange);
+
+  // Sync with initial values when they change (from URL params)
+  useEffect(() => {
+    setStatusFilter(initialStatus);
+  }, [initialStatus]);
+
+  useEffect(() => {
+    setDateRange(initialDateRange);
+  }, [initialDateRange]);
 
   // Handle search change
   const handleSearchChange = (value: string) => {
@@ -58,15 +82,24 @@ export function PurchasesHeader({
   };
 
   // Handle sort change
-  const handleSortChange = (field: string) => {
-    setSortBy(field);
-    // Toggle order if same field is selected
-    const newOrder = sortBy === field && order === "asc" ? "desc" : "asc";
-    setOrder(newOrder);
-    onSortChange({ sortBy: field, order: newOrder });
+  const handleSortChange = (value: string) => {
+    setSortBy(value);
+    onSortChange({ sortBy: value, order });
   };
 
-  // Handle new order added
+  // Handle date range change
+  const handleDateRangeChange = (range: { from: Date | null; to: Date | null }) => {
+    setDateRange(range);
+    onDateRangeChange(range);
+  };
+
+  // Clear date range
+  const clearDateRange = () => {
+    const emptyRange = { from: null, to: null };
+    setDateRange(emptyRange);
+    onDateRangeChange(emptyRange);
+  };
+
   const handleNewOrder = (newOrder: IOrder) => {
     addNewOrder(newOrder);
     // Trigger refresh if callback provided
@@ -102,7 +135,9 @@ export function PurchasesHeader({
             className="pl-10 border-2 border-input focus-visible:ring-2 focus-visible:ring-primary/30"
           />
         </div>
+
         <div className="flex flex-wrap gap-2">
+          {/* Status Filter */}
           <Select value={statusFilter} onValueChange={handleStatusChange}>
             <SelectTrigger className="w-[180px] border-2 border-input focus:ring-2 focus:ring-primary/30">
               <SelectValue placeholder="Status" />
@@ -115,12 +150,75 @@ export function PurchasesHeader({
               <SelectItem value="paid">Paid</SelectItem>
             </SelectContent>
           </Select>
+
+          {/* Supplier Filter */}
           <MultiSupplierSelect
             selectedSuppliers={selectedSuppliers}
             onSuppliersChange={handleSupplierChange}
             placeholder="Select suppliers..."
             className="min-w-[200px] max-w-[400px] border-2 border-input focus:ring-2 focus:ring-primary/30"
           />
+
+          {/* Date Range Filter */}
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button
+                variant="outline"
+                className={cn(
+                  "w-[280px] justify-start text-left font-normal border-2 border-input",
+                  !dateRange.from && !dateRange.to && "text-muted-foreground"
+                )}
+              >
+                <CalendarIcon className="mr-2 h-4 w-4" />
+                {dateRange.from && dateRange.to ? (
+                  <>
+                    {format(dateRange.from, "PP")} - {format(dateRange.to, "PP")}
+                  </>
+                ) : (
+                  <span>Pick a date range</span>
+                )}
+                {(dateRange.from || dateRange.to) && (
+                  <X
+                    className="ml-auto h-4 w-4"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      clearDateRange();
+                    }}
+                  />
+                )}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="start">
+              <div className="p-3 space-y-3">
+                <div>
+                  <p className="text-sm font-medium mb-2">From Date</p>
+                  <Calendar
+                    mode="single"
+                    selected={dateRange.from || undefined}
+                    onSelect={(date) =>
+                      handleDateRangeChange({ ...dateRange, from: date || null })
+                    }
+                    initialFocus
+                  />
+                </div>
+                <div>
+                  <p className="text-sm font-medium mb-2">To Date</p>
+                  <Calendar
+                    mode="single"
+                    selected={dateRange.to || undefined}
+                    onSelect={(date) =>
+                      handleDateRangeChange({ ...dateRange, to: date || null })
+                    }
+                    disabled={(date) =>
+                      dateRange.from ? date < dateRange.from : false
+                    }
+                  />
+                </div>
+              </div>
+            </PopoverContent>
+          </Popover>
+
+          {/* Sort Filter */}
           <Select value={sortBy} onValueChange={handleSortChange}>
             <SelectTrigger className="w-[180px] border-2 border-input focus:ring-2 focus:ring-primary/30">
               <SelectValue placeholder="Sort by" />
@@ -132,6 +230,8 @@ export function PurchasesHeader({
               <SelectItem value="supplierId.name">Supplier</SelectItem>
             </SelectContent>
           </Select>
+
+          {/* Sort Order Button */}
           <Button
             variant="outline"
             size="icon"

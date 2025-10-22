@@ -16,6 +16,7 @@ import {
   Settings,
   Bell,
   Shapes,
+  Zap,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -28,6 +29,7 @@ const navigation = [
   { name: "Products", href: "/dashboard/products", icon: Package },
   { name: "Suppliers", href: "/dashboard/suppliers", icon: Users },
   { name: "Purchase Lists", href: "/dashboard/purchases", icon: ShoppingCart },
+  { name: "Shortcuts", href: "/dashboard/shortcuts", icon: Zap },
   { name: "Low Stock", href: "/dashboard/alerts", icon: AlertTriangle },
   { name: "Staff", href: "/dashboard/stuff", icon: Users },
   { name: "Tasks", href: "/dashboard/tasks", icon: Users },
