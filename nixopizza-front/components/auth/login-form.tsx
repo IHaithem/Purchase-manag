@@ -25,24 +25,27 @@ export function LoginForm() {
   const [error, setError] = useState("");
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsLoading(true);
-    setError("");
+  e.preventDefault();
+  setIsLoading(true);
+  setError("");
 
-    try {
-      // Simulate API call
-      const { success, message } = await loginUser({ email, password });
-      if (success) {
-        window.location.href = "/dashboard";
-      } else {
-        setError(message);
-      }
-    } catch (err) {
-      setError("Login failed. Please try again.");
-    } finally {
-      setIsLoading(false);
+  try {
+    const { success, user, message } = await loginUser({ email, password });
+
+    if (success && user?.role === "admin") {
+      window.location.href = "/dashboard";
+    } else if (success && user?.role === "staff") {
+      window.location.href = "/dashboardstaff";
+    } else {
+      setError("Unknown role. Access denied.");
     }
-  };
+  } catch (err) {
+    setError("Login failed. Please try again.");
+  } finally {
+    setIsLoading(false);
+  }
+};
+
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-muted/30 p-4">

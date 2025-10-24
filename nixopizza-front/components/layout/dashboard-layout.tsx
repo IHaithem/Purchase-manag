@@ -1,7 +1,6 @@
 "use client";
 
 import type React from "react";
-
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
@@ -13,7 +12,6 @@ import {
   BarChart3,
   Menu,
   LogOut,
-  Settings,
   Bell,
   Shapes,
   Zap,
@@ -22,27 +20,35 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { logoutUser } from "@/lib/apis/auth";
-
-const navigation = [
-  { name: "Dashboard", href: "/dashboard", icon: BarChart3 },
-  { name: "Categories", href: "/dashboard/categories", icon: Shapes },
-  { name: "Products", href: "/dashboard/products", icon: Package },
-  { name: "Suppliers", href: "/dashboard/suppliers", icon: Users },
-  { name: "Purchase Lists", href: "/dashboard/purchases", icon: ShoppingCart },
-  { name: "Shortcuts", href: "/dashboard/shortcuts", icon: Zap },
-  { name: "Low Stock", href: "/dashboard/alerts", icon: AlertTriangle },
-  { name: "Staff", href: "/dashboard/stuff", icon: Users },
-  { name: "Tasks", href: "/dashboard/tasks", icon: Users },
-  { name: "Notifications", href: "/dashboard/notifications", icon: Bell },
-];
+import { useAuth } from "@/hooks/useAuth";
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
 }
 
 export function DashboardLayout({ children }: DashboardLayoutProps) {
+  const { user } = useAuth(); // ✅ valid hook usage
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const pathname = usePathname();
+
+  const navigation =
+    user?.role === "admin"
+      ? [
+          { name: "Dashboard", href: "/dashboard", icon: BarChart3 },
+          { name: "Categories", href: "/dashboard/categories", icon: Shapes },
+          { name: "Products", href: "/dashboard/products", icon: Package },
+          { name: "Suppliers", href: "/dashboard/suppliers", icon: Users },
+          { name: "Purchase Lists", href: "/dashboard/purchases", icon: ShoppingCart },
+          { name: "Shortcuts", href: "/dashboard/shortcuts", icon: Zap },
+          { name: "Low Stock", href: "/dashboard/alerts", icon: AlertTriangle },
+          { name: "Staff", href: "/dashboard/stuff", icon: Users },
+          { name: "Tasks", href: "/dashboard/tasks", icon: Users },
+          { name: "Notifications", href: "/dashboard/notifications", icon: Bell },
+        ]
+      : [
+          { name: "Dashboard", href: "/dashboardstaff", icon: BarChart3 },
+          { name: "Orders", href: "/dashboardstaff/orders", icon: Users },
+        ];
 
   const handleLogout = async () => {
     await logoutUser();
