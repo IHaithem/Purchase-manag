@@ -29,6 +29,7 @@ import { Input } from "../ui/input";
 import { IOrder } from "@/app/dashboard/purchases/page";
 import { updateOrder } from "@/lib/apis/purchase-list";
 import toast from "react-hot-toast";
+import { useAuth } from "@/hooks/useAuth";
 
 interface PurchaseOrderDialogProps {
   order: IOrder | null;
@@ -44,6 +45,7 @@ export function PurchaseOrderDialog({
   setPurchaseOrders,
 }: PurchaseOrderDialogProps) {
   if (!order) return null;
+  const { user } = useAuth();
   const [currentStep, setCurrentStep] = useState<number>(0);
   const [billFile, setBillFile] = useState<File | null>(null);
   const [billPreview, setBillPreview] = useState<string | null>(null);
@@ -278,109 +280,110 @@ export function PurchaseOrderDialog({
             </Card>
 
             {/* Bill Section */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="font-heading flex items-center gap-2">
-                  <Upload className="h-5 w-5" />
-                  Bill (Bon)
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                {hasBill ? (
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-4">
-                      <div className="p-2 bg-muted rounded-lg">
-                        {order.bon?.endsWith(".pdf") ? (
-                          <span className="text-red-500 font-medium">PDF</span>
-                        ) : (
-                          <img
-                            src={process.env.NEXT_PUBLIC_BASE_URL + order.bon}
-                            alt="Bill preview"
-                            className="w-16 h-16 object-cover rounded"
-                          />
-                        )}
-                      </div>
-                      <div>
-                        <div className="font-medium">Bill Uploaded</div>
-                        <div className="text-sm text-muted-foreground">
-                          Click to view or download
-                        </div>
-                      </div>
-                    </div>
-                    <div className="flex gap-2">
-                      <Button
-                        variant="outline"
-                        className="gap-2"
-                        onClick={() => {
-                          window.open(
-                            process.env.NEXT_PUBLIC_BASE_URL + order.bon,
-                            "_blank"
-                          );
-                        }}
-                      >
-                        <Download className="h-4 w-4" />
-                        View Bill
-                      </Button>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-4">
-                      {billPreview ? (
-                        <div className="relative">
-                          {billFile?.type === "application/pdf" ? (
-                            <div className="p-2 bg-muted rounded-lg">
-                              <span className="text-red-500 font-medium">
-                                PDF
-                              </span>
-                            </div>
+            {order.status !== "assigned" && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="font-heading flex items-center gap-2">
+                    <Upload className="h-5 w-5" />
+                    Bill (Bon)
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {hasBill ? (
+                    <div className="space-y-4">
+                      <div className="flex items-center gap-4">
+                        <div className="p-2 bg-muted rounded-lg">
+                          {order.bon?.endsWith(".pdf") ? (
+                            <span className="text-red-500 font-medium">PDF</span>
                           ) : (
                             <img
-                              src={billPreview}
+                              src={process.env.NEXT_PUBLIC_BASE_URL + order.bon}
                               alt="Bill preview"
                               className="w-16 h-16 object-cover rounded"
                             />
                           )}
-                          <button
-                            type="button"
-                            onClick={removeBill}
-                            className="absolute -top-2 -right-2 bg-destructive text-destructive-foreground rounded-full p-1 hover:opacity-80"
-                          >
-                            <span className="sr-only">Remove</span>
-                            <span className="h-3 w-3">✕</span>
-                          </button>
                         </div>
-                      ) : (
-                        <div className="flex items-center justify-center w-16 h-16 border-2 border-dashed border-gray-300 rounded-lg">
-                          <Upload className="h-8 w-8 text-gray-400" />
+                        <div>
+                          <div className="font-medium">Bill Uploaded</div>
+                          <div className="text-sm text-muted-foreground">
+                            Click to view or download
+                          </div>
                         </div>
-                      )}
-
-                      <div className="flex flex-col gap-2">
-                        <Label
-                          htmlFor="bill-upload"
-                          className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-md cursor-pointer hover:opacity-90 transition-opacity"
+                      </div>
+                      <div className="flex gap-2">
+                        <Button
+                          variant="outline"
+                          className="gap-2"
+                          onClick={() => {
+                            window.open(
+                              process.env.NEXT_PUBLIC_BASE_URL + order.bon,
+                              "_blank"
+                            );
+                          }}
                         >
-                          <Upload className="h-4 w-4" />
-                          {billPreview ? "Change Bill" : "Upload Bill"}
-                        </Label>
-                        <p className="text-xs text-muted-foreground">
-                          PNG, JPG, PDF up to 5MB
-                        </p>
-                        <Input
-                          id="bill-upload"
-                          type="file"
-                          accept="image/*,.pdf"
-                          onChange={handleBillUpload}
-                          className="hidden"
-                        />
+                          <Download className="h-4 w-4" />
+                          View Bill
+                        </Button>
                       </div>
                     </div>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+                  ) : (
+                    <div className="space-y-4">
+                      <div className="flex items-center gap-4">
+                        {billPreview ? (
+                          <div className="relative">
+                            {billFile?.type === "application/pdf" ? (
+                              <div className="p-2 bg-muted rounded-lg">
+                                <span className="text-red-500 font-medium">
+                                  PDF
+                                </span>
+                              </div>
+                            ) : (
+                              <img
+                                src={billPreview}
+                                alt="Bill preview"
+                                className="w-16 h-16 object-cover rounded"
+                              />
+                            )}
+                            <button
+                              type="button"
+                              onClick={removeBill}
+                              className="absolute -top-2 -right-2 bg-destructive text-destructive-foreground rounded-full p-1 hover:opacity-80"
+                            >
+                              <span className="sr-only">Remove</span>
+                              <span className="h-3 w-3">✕</span>
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="flex items-center justify-center w-16 h-16 border-2 border-dashed border-gray-300 rounded-lg">
+                            <Upload className="h-8 w-8 text-gray-400" />
+                          </div>
+                        )}
 
+                        <div className="flex flex-col gap-2">
+                          <Label
+                            htmlFor="bill-upload"
+                            className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-md cursor-pointer hover:opacity-90 transition-opacity"
+                          >
+                            <Upload className="h-4 w-4" />
+                            {billPreview ? "Change Bill" : "Upload Bill"}
+                          </Label>
+                          <p className="text-xs text-muted-foreground">
+                            PNG, JPG, PDF up to 5MB
+                          </p>
+                          <Input
+                            id="bill-upload"
+                            type="file"
+                            accept="image/*,.pdf"
+                            onChange={handleBillUpload}
+                            className="hidden"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
             {/* Actions */}
             <div className="flex gap-2 justify-end">
               {order.status === "assigned" && (
@@ -411,8 +414,9 @@ export function PurchaseOrderDialog({
                   )}
                 </>
               )}
+              
 
-              {order.status === "confirmed" && (
+              {order.status === "confirmed" && user?.role === "admin" && (
                 <Button
                   className="gap-2 bg-green-600 text-white hover:bg-green-700"
                   onClick={handleConfirmPaid}
@@ -421,6 +425,7 @@ export function PurchaseOrderDialog({
                   Confirm Paid
                 </Button>
               )}
+
 
               {order.status === "paid" && (
                 <Button variant="outline" disabled>
