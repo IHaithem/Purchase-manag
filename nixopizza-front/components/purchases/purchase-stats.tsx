@@ -11,26 +11,34 @@ export function PurchaseStats() {
     paidOrders: 0,
     totalValue: 0,
   });
+
   useEffect(() => {
     const fetchStats = async () => {
-      const {
-        pendingOrders,
-        confirmedOrders,
-        paidOrders,
-        totalValue,
-        success,
-        message,
-      } = await getOrdersStats();
-      if (success) {
+      const response = await getOrdersStats();
+
+      if (response.success) {
+        const {
+          notAssignedOrders = 0,
+          assignedOrders = 0,
+          confirmedOrders = 0,
+          paidOrders = 0,
+          totalValue = 0,
+        } = response;
+
+        const pendingOrders = notAssignedOrders + assignedOrders;
+
         setStats({ pendingOrders, confirmedOrders, paidOrders, totalValue });
       } else {
-        toast.error(message || "Failed to fetch order stats");
+        toast.error(response.message || "Failed to fetch order stats");
       }
     };
+
     fetchStats();
   }, []);
+
   return (
     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      {/* Pending Orders */}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle className="text-sm font-medium">Pending Orders</CardTitle>
@@ -42,43 +50,38 @@ export function PurchaseStats() {
         </CardContent>
       </Card>
 
+      {/* Confirmed Orders */}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium">
-            Confirmed Orders
-          </CardTitle>
+          <CardTitle className="text-sm font-medium">Confirmed Orders</CardTitle>
           <CheckCircle className="h-4 w-4 text-blue-600" />
         </CardHeader>
         <CardContent>
-          <div className="text-2xl font-bold text-blue-600">
-            {stats.confirmedOrders}
-          </div>
+          <div className="text-2xl font-bold text-blue-600">{stats.confirmedOrders}</div>
           <p className="text-xs text-muted-foreground">Ready for fulfillment</p>
         </CardContent>
       </Card>
 
+      {/* Paid Orders */}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle className="text-sm font-medium">Paid Orders</CardTitle>
-          <p className="text-green-600">DZA</p>
+          <DollarSign className="h-4 w-4 text-green-600" />
         </CardHeader>
         <CardContent>
-          <div className="text-2xl font-bold text-green-600">
-            {stats.paidOrders}
-          </div>
+          <div className="text-2xl font-bold text-green-600">{stats.paidOrders}</div>
           <p className="text-xs text-muted-foreground">Payment received</p>
         </CardContent>
       </Card>
 
+      {/* Total Value */}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle className="text-sm font-medium">Total Value</CardTitle>
           <ShoppingCart className="h-4 w-4 text-muted-foreground" />
         </CardHeader>
         <CardContent>
-          <div className="text-2xl font-bold">
-            {stats.totalValue.toFixed(2)} DA
-          </div>
+          <div className="text-2xl font-bold">{stats.totalValue.toFixed(2)} DA</div>
           <p className="text-xs text-muted-foreground">This month</p>
         </CardContent>
       </Card>
