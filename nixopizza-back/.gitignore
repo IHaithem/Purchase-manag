@@ -1,62 +1,31 @@
-node_modules# ========================
-# Environment & Secrets
+# Dependencies
 # ========================
-.env                # Main environment file
-.env.local          # Local development overrides
-.env.*              # All other env variants (e.g., .env.prod, .env.test)
-!.env.example       # Keep this tracked as a template
-secrets/            # Folder for credential files
-*.key               # Private keys
-*.pem
-*.crt
-
+node_modules/
+uploads/
 # ========================
-# Dependency Directories
+# Logs
 # ========================
-node_modules       # NPM packages (never commit this!)
-jspm_packages/
-.pnpm-store/
-
-# ========================
-# Logs & Runtime
-# ========================
-logs                # Custom log directory
-*.log               # Log files
-npm-debug.log*      # NPM debug logs
+npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
-.pnpm-debug.log*
-*.pid               # Process IDs
-.forever/           # Forever.js logs
+pnpm-debug.log*
+*.log
 
 # ========================
-# Build & Output
+# Environment variables
 # ========================
-dist/               # Compiled output (if using TypeScript/Babel)
-build/              # Common build directory
-coverage/           # Test coverage reports
-.nyc_output/        # Istanbul coverage data
+.env
+.env.local
+.env.*        # Other env variants like .env.production, .env.staging
+
 
 # ========================
-# Cache & Temp Files
+# IDEs and Editors
 # ========================
-.cache/             # Parcel, Babel, etc.
-.temp/              # Temporary files
-*.tmp               # OS/system temp files
-src/uploads/
+.vscode/
+.idea/
 
 # ========================
-# Editor & IDE
+# OS files
 # ========================
-.vscode/            # VSCode settings
-!.vscode/extensions.json  # (Optional: Share extensions)
-.idea/              # JetBrains IDE
-.DS_Store           # macOS metadata
-*.swp               # Vim swap files
-
-# ========================
-# Misc
-# ========================
-.env.production     # (Optional: Ignore production env)
-.env.development    # (Optional: Ignore dev env)
-dump.rdb            # Redis database backup
+.DS_Store

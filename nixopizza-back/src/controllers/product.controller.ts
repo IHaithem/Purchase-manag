@@ -94,7 +94,7 @@ export const getAllProducts = async (
   res: Response
 ): Promise<void> => {
   try {
-    const { name, categoryId, sortBy, order, page = 1, limit = 10 } = req.query;
+    const { name, categoryIds, sortBy, order, page = 1, limit = 10 } = req.query;
 
     if (Number(page) < 1 || Number(limit) < 1) {
       res
@@ -104,14 +104,13 @@ export const getAllProducts = async (
     }
 
     const query: any = {};
-
     if (name) {
       query.$or = [
         { name: { $regex: name, $options: "i" } },
         { description: { $regex: name, $options: "i" } },
       ];
     }
-    if (categoryId) query.categoryId = categoryId;
+    if (categoryIds) query.categoryId = { $in: (categoryIds as string).split(",") };
 
     const sortField = sortBy?.toString() || "createdAt";
     const sortOrder = order === "asc" ? 1 : -1;
