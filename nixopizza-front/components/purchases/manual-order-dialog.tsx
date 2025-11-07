@@ -61,6 +61,7 @@ export function ManualOrderDialog({
     { productId: "", quantity: 1, unitCost: 0, expirationDate: new Date() },
   ]);
   const [notes, setNotes] = useState("");
+  const [expectedDate, setExpectedDate] = useState<string>("");
   const [billFile, setBillFile] = useState<File | null>(null);
   const [billPreview, setBillPreview] = useState<string | null>(null);
 
@@ -216,6 +217,11 @@ export function ManualOrderDialog({
       const dataToSend = new FormData();
       dataToSend.append("supplierId", selectedSupplier._id);
       dataToSend.append("notes", notes);
+      
+      // Add expected date if provided
+      if (expectedDate) {
+        dataToSend.append("expectedDate", new Date(expectedDate).toISOString());
+      }
 
       // Add bill if provided
       if (billFile) {
@@ -266,6 +272,7 @@ export function ManualOrderDialog({
     setSelectedProducts([null]);
     setFilteredProducts([]);
     setNotes("");
+    setExpectedDate("");
     setBillFile(null);
     setBillPreview(null);
     setError(null);
@@ -520,6 +527,20 @@ export function ManualOrderDialog({
                 </div>
               </div>
             </div> */}
+
+          {/* Expected Date */}
+          <div className="space-y-2">
+            <Label htmlFor="expectedDate" className="text-sm font-medium">
+              Expected Delivery Date (Optional)
+            </Label>
+            <Input
+              id="expectedDate"
+              type="date"
+              value={expectedDate}
+              onChange={(e) => setExpectedDate(e.target.value)}
+              className="border-2 border-input focus:ring-2 focus:ring-primary/30 rounded-lg"
+            />
+          </div>
 
           {/* Notes */}
           <div className="space-y-2">

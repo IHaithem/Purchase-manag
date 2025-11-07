@@ -238,9 +238,9 @@ export default function AddProductPage() {
                 </div>
               </div>
 
-              {/* <div className="space-y-2">
+              <div className="space-y-2">
                 <Label htmlFor="description" className="text-sm font-medium">
-                  Description
+                  Description (Optional)
                 </Label>
                 <Textarea
                   id="description"
@@ -252,7 +252,7 @@ export default function AddProductPage() {
                   rows={3}
                   className="resize-y border-2 border-input focus-visible:ring-2 focus-visible:ring-primary/30 rounded-lg"
                 />
-              </div> */}
+              </div>
 
               {/* Modern Image Upload */}
               <div className="space-y-2">
