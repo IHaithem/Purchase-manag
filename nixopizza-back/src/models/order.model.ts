@@ -6,7 +6,7 @@ export interface IOrder extends Document {
   orderNumber: string;
   supplierId: Schema.Types.ObjectId;
   staffId: Schema.Types.ObjectId;
-  status: "not assigned" | "assigned" | "confirmed" | "paid";
+  status: "not assigned" | "assigned" | "confirmed" | "paid" | "canceled";
   totalAmount: number;
   items: Schema.Types.ObjectId[];
   notes: string;
@@ -15,6 +15,8 @@ export interface IOrder extends Document {
   paidDate: Date;
   assignedDate: Date;
   confirmedDate: Date;
+  expectedDate?: Date;
+  canceledDate?: Date;
 }
 
 const orderSchema = new Schema<IOrder>(
@@ -42,7 +44,7 @@ const orderSchema = new Schema<IOrder>(
 
     status: {
       type: String,
-      enum: ["not assigned", "assigned", "confirmed", "paid"],
+      enum: ["not assigned", "assigned", "confirmed", "paid", "canceled"],
       default: "not assigned",
     },
 
@@ -71,6 +73,14 @@ const orderSchema = new Schema<IOrder>(
     },
 
     paidDate: {
+      type: Date,
+    },
+
+    expectedDate: {
+      type: Date,
+    },
+
+    canceledDate: {
       type: Date,
     },
   },

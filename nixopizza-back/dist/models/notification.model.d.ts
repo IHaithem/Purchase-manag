@@ -4,6 +4,7 @@ export interface INotification {
     title: string;
     message: string;
     isRead: boolean;
+    recipientRole?: string;
     actionUrl?: string;
     createdAt: Date;
     updatedAt: Date;

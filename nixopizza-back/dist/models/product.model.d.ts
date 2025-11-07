@@ -5,6 +5,7 @@ export interface IProduct extends Document {
     unit: "liter" | "kilogram" | "box" | "piece" | "meter" | "pack" | "bottle";
     categoryId: Schema.Types.ObjectId;
     imageUrl: string;
+    description?: string;
     currentStock: number;
     minQty: number;
     recommendedQty: number;

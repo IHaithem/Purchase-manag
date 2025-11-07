@@ -8,7 +8,7 @@ const product_model_1 = __importDefault(require("../models/product.model"));
 const Delete_1 = require("../utils/Delete");
 const createProduct = async (req, res) => {
     try {
-        const { name, barcode, unit, categoryId, currentStock, minQty, recommendedQty } = req.body;
+        const { name, barcode, unit, categoryId, description, currentStock, minQty, recommendedQty } = req.body;
         if (!name || !unit || !categoryId || !currentStock || !minQty) {
             res.status(400).json({ message: "All fields must fill" });
             return;
@@ -23,6 +23,7 @@ const createProduct = async (req, res) => {
             barcode,
             unit,
             categoryId,
+            description,
             currentStock,
             minQty,
             recommendedQty,
@@ -43,8 +44,8 @@ exports.createProduct = createProduct;
 const updateProduct = async (req, res) => {
     try {
         console.log("Product Body : ", req.body);
-        const { name, barcode, unit, categoryId, currentStock, minQty, recommendedQty } = req.body;
-        console.log(name, barcode, unit, categoryId, currentStock, minQty, recommendedQty);
+        const { name, barcode, unit, categoryId, description, currentStock, minQty, recommendedQty } = req.body;
+        console.log(name, barcode, unit, categoryId, description, currentStock, minQty, recommendedQty);
         console.log("Updated Product");
         const product = await product_model_1.default.findById(req.params.productId);
         if (!product) {
@@ -59,6 +60,8 @@ const updateProduct = async (req, res) => {
             product.unit = unit;
         if (categoryId)
             product.categoryId = categoryId;
+        if (description !== undefined)
+            product.description = description;
         //TODO: should be handeled in the front and send it as a number not string
         if (currentStock) {
             product.currentStock = Number(currentStock);

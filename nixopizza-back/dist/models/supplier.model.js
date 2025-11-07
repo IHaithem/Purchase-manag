@@ -21,13 +21,22 @@ const supplierSchema = new mongoose_1.Schema({
             "Please fill a valid email address",
         ],
     },
-    phone: {
+    phone1: {
         type: String,
         required: [true, "Phone Number Is Required"],
+    },
+    phone2: {
+        type: String,
+    },
+    phone3: {
+        type: String,
     },
     address: {
         type: String,
         required: [true, "Address Is Required"],
+    },
+    city: {
+        type: String,
     },
     image: {
         type: String,

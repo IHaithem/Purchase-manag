@@ -38,7 +38,13 @@ const userSchema = new mongoose_1.Schema({
     avatar: {
         type: String,
     },
-    phone: {
+    phone1: {
+        type: String,
+    },
+    phone2: {
+        type: String,
+    },
+    phone3: {
         type: String,
     },
     address: {

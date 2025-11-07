@@ -14,7 +14,7 @@ const generateOrderNumber = () => {
 };
 const createOrder = async (req, res) => {
     try {
-        const { items, supplierId, notes, } = req.body;
+        const { items, supplierId, notes, expectedDate, } = req.body;
         const productOrdersPromises = items.map(async ({ productId, quantity, unitCost, expirationDate }) => {
             const product = await product_model_1.default.findById(productId);
             if (!product)
@@ -42,6 +42,7 @@ const createOrder = async (req, res) => {
             status: "not assigned", // Start as "not assigned"
             totalAmount,
             notes,
+            expectedDate,
             orderNumber: generateOrderNumber(),
         });
         const filename = req.file?.filename;
@@ -151,8 +152,8 @@ exports.confirmOrder = confirmOrder;
 const updateOrder = async (req, res) => {
     try {
         const orderId = req.params.orderId;
-        const { status } = req.body;
-        const validStatuses = ["not assigned", "assigned", "confirmed", "paid"];
+        const { status, expectedDate, canceledDate } = req.body;
+        const validStatuses = ["not assigned", "assigned", "confirmed", "paid", "canceled"];
         if (status && !validStatuses.includes(status)) {
             res.status(400).json({
                 message: `Invalid status. Use one of: ${validStatuses.join(", ")}`,
@@ -168,6 +169,15 @@ const updateOrder = async (req, res) => {
         if (status === "paid" && order.status === "confirmed") {
             order.status = "paid";
             order.paidDate = new Date();
+        }
+        // Handle status change to canceled
+        if (status === "canceled") {
+            order.status = "canceled";
+            order.canceledDate = canceledDate ? new Date(canceledDate) : new Date();
+        }
+        // Update expectedDate if provided
+        if (expectedDate !== undefined) {
+            order.expectedDate = expectedDate ? new Date(expectedDate) : undefined;
         }
         await order.save();
         res.status(200).json({ message: "Order updated successfully", order });
@@ -222,7 +232,7 @@ const getOrdersByFilter = async (req, res) => {
             { path: "staffId", select: "avatar email fullname" },
             {
                 path: "supplierId",
-                select: "email name image contactPerson address phone",
+                select: "email name image contactPerson address phone1 phone2 phone3 city",
             },
             {
                 path: "items",

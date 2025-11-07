@@ -4,8 +4,11 @@ export interface ISupplier extends Document {
   name: string;
   contactPerson: String;
   email: string;
-  phone: string;
+  phone1: string;
+  phone2?: string;
+  phone3?: string;
   address: string;
+  city?: string;
   categoryIds: Schema.Types.ObjectId[];
   image: string;
   notes?: string;
@@ -35,13 +38,22 @@ const supplierSchema = new Schema<ISupplier>(
         "Please fill a valid email address",
       ],
     },
-    phone: {
+    phone1: {
       type: String,
       required: [true, "Phone Number Is Required"],
+    },
+    phone2: {
+      type: String,
+    },
+    phone3: {
+      type: String,
     },
     address: {
       type: String,
       required: [true, "Address Is Required"],
+    },
+    city: {
+      type: String,
     },
     image: {
       type: String,

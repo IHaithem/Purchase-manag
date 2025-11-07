@@ -12,6 +12,7 @@ const notificationSchema = new mongoose_1.Schema({
         type: Boolean,
         default: false,
     },
+    recipientRole: String,
     actionUrl: String,
 }, { timestamps: true });
 const Notification = (0, mongoose_1.model)("Notification", notificationSchema);

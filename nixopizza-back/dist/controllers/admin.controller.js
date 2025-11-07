@@ -43,7 +43,7 @@ const getAllStaff = async (req, res) => {
 exports.getAllStaff = getAllStaff;
 const newStaffMember = async (req, res) => {
     try {
-        const { fullname, email, password, phone, address } = req.body;
+        const { fullname, email, password, phone1, phone2, phone3, address } = req.body;
         if (!fullname || !email || !password) {
             res.status(400).json({ message: "All Fileds must be fill" });
             return;
@@ -53,7 +53,9 @@ const newStaffMember = async (req, res) => {
             fullname,
             email,
             password,
-            phone,
+            phone1,
+            phone2,
+            phone3,
             address,
         });
         if (filename) {
@@ -76,7 +78,7 @@ exports.newStaffMember = newStaffMember;
 const updateStaff = async (req, res) => {
     try {
         const { staffId } = req.params;
-        const { fullname, email, phone, address, status, notes } = req.body;
+        const { fullname, email, phone1, phone2, phone3, address, status, notes } = req.body;
         // Validate required fields
         if (!fullname || !email) {
             res.status(400).json({
@@ -104,7 +106,9 @@ const updateStaff = async (req, res) => {
         // Update fields
         staff.fullname = fullname;
         staff.email = email;
-        staff.phone = phone || "";
+        staff.phone1 = phone1;
+        staff.phone2 = phone2;
+        staff.phone3 = phone3;
         staff.address = address || "";
         staff.isActive = status === "Active"; // Convert string to boolean
         // Handle avatar update
@@ -118,7 +122,9 @@ const updateStaff = async (req, res) => {
                 _id: staff._id,
                 fullname: staff.fullname,
                 email: staff.email,
-                phone: staff.phone,
+                phone1: staff.phone1,
+                phone2: staff.phone2,
+                phone3: staff.phone3,
                 address: staff.address,
                 isActive: staff.isActive,
                 avatar: staff.avatar,

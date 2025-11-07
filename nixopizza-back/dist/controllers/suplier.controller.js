@@ -9,7 +9,7 @@ const Delete_1 = require("../utils/Delete");
 const mongoose_1 = __importDefault(require("mongoose"));
 const createSupplier = async (req, res) => {
     try {
-        const { name, contactPerson, email, phone, address, categoryIds, notes } = req.body;
+        const { name, contactPerson, email, phone1, phone2, phone3, address, city, categoryIds, notes } = req.body;
         const existingSupplier = await supplier_model_1.default.findOne({ email });
         if (existingSupplier) {
             res
@@ -22,8 +22,11 @@ const createSupplier = async (req, res) => {
             name,
             contactPerson,
             email,
-            phone,
+            phone1,
+            phone2,
+            phone3,
             address,
+            city,
             notes,
             categoryIds,
             image: `/uploads/suppliers/${filename}`,
@@ -100,7 +103,7 @@ exports.getSupplierById = getSupplierById;
 const updateSupplier = async (req, res) => {
     try {
         const { supplierId } = req.params;
-        const { name, address, contactPerson, email, phone, categoryIds, notes, isActive, } = req.body;
+        const { name, address, city, contactPerson, email, phone1, phone2, phone3, categoryIds, notes, isActive, } = req.body;
         const supplier = await supplier_model_1.default.findById(supplierId);
         if (!supplier) {
             res.status(404).json({ message: "Supplier not found" });
@@ -111,12 +114,18 @@ const updateSupplier = async (req, res) => {
             supplier.name = name;
         if (address)
             supplier.address = address;
+        if (city !== undefined)
+            supplier.city = city;
         if (contactPerson)
             supplier.contactPerson = contactPerson;
         if (email)
             supplier.email = email;
-        if (phone)
-            supplier.phone = phone;
+        if (phone1 !== undefined)
+            supplier.phone1 = phone1;
+        if (phone2 !== undefined)
+            supplier.phone2 = phone2;
+        if (phone3 !== undefined)
+            supplier.phone3 = phone3;
         if (categoryIds)
             supplier.categoryIds = categoryIds;
         if (notes)

@@ -4,7 +4,7 @@ export interface IOrder extends Document {
     orderNumber: string;
     supplierId: Schema.Types.ObjectId;
     staffId: Schema.Types.ObjectId;
-    status: "not assigned" | "assigned" | "confirmed" | "paid";
+    status: "not assigned" | "assigned" | "confirmed" | "paid" | "canceled";
     totalAmount: number;
     items: Schema.Types.ObjectId[];
     notes: string;
@@ -13,6 +13,8 @@ export interface IOrder extends Document {
     paidDate: Date;
     assignedDate: Date;
     confirmedDate: Date;
+    expectedDate?: Date;
+    canceledDate?: Date;
 }
 declare const Order: mongoose.Model<IOrder, {}, {}, {}, mongoose.Document<unknown, {}, IOrder, {}> & IOrder & Required<{
     _id: unknown;

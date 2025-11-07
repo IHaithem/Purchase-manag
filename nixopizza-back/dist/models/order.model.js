@@ -55,7 +55,7 @@ const orderSchema = new mongoose_1.Schema({
     },
     status: {
         type: String,
-        enum: ["not assigned", "assigned", "confirmed", "paid"],
+        enum: ["not assigned", "assigned", "confirmed", "paid", "canceled"],
         default: "not assigned",
     },
     totalAmount: {
@@ -78,6 +78,12 @@ const orderSchema = new mongoose_1.Schema({
         type: Date,
     },
     paidDate: {
+        type: Date,
+    },
+    expectedDate: {
+        type: Date,
+    },
+    canceledDate: {
         type: Date,
     },
 }, {

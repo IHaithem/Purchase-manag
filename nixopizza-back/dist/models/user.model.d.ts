@@ -6,7 +6,9 @@ export interface IUser extends Document {
     avatar?: string;
     role: "admin" | "staff";
     isActive: boolean;
-    phone: string;
+    phone1?: string;
+    phone2?: string;
+    phone3?: string;
     address: string;
     createdAt: Date;
     updatedAt: Date;

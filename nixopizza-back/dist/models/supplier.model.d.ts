@@ -3,8 +3,11 @@ export interface ISupplier extends Document {
     name: string;
     contactPerson: String;
     email: string;
-    phone: string;
+    phone1: string;
+    phone2?: string;
+    phone3?: string;
     address: string;
+    city?: string;
     categoryIds: Schema.Types.ObjectId[];
     image: string;
     notes?: string;
