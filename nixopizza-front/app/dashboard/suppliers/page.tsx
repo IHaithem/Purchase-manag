@@ -11,7 +11,10 @@ export interface ISupplier {
   name: string;
   contactPerson: string;
   email: string;
-  phone: string;
+  phone1: string;
+  phone2: string;
+  phone3: string;
+  city: string;
   address: string;
   categoryIds: string[];
   image: string;

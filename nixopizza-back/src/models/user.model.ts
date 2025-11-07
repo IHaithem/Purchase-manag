@@ -8,7 +8,9 @@ export interface IUser extends Document {
   avatar?: string;
   role: "admin" | "staff";
   isActive: boolean;
-  phone: string;
+  phone1: string;
+  phone2: string;
+  phone3: string;
   address: string;
   createdAt: Date;
   updatedAt: Date;
@@ -49,8 +51,17 @@ const userSchema = new Schema<IUser>(
     avatar: {
       type: String,
     },
-    phone: {
+    phone1: {
       type: String,
+      default: "",
+    },
+    phone2: {
+      type: String,
+      default: "",
+    },
+    phone3: {
+      type: String,
+      default: "",
     },
     address: {
       type: String,

@@ -21,6 +21,7 @@ export interface IProduct {
   currentStock: number;
   minQty: number;
   recommendedQty: number;
+  description: string;
   createdAt?: Date;
   updatedAt?: Date;
 }

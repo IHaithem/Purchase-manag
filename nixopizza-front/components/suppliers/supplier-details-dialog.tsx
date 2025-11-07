@@ -130,12 +130,30 @@ export function SupplierDetailsDialog({
                   </p>
                 </div>
                 <div className="space-y-1">
-                  <p className="text-sm text-muted-foreground">Phone</p>
+                  <p className="text-sm text-muted-foreground">Phone 1</p>
                   <p className="font-medium flex items-center gap-2">
                     <Phone className="h-4 w-4 text-muted-foreground" />
-                    {supplier.phone}
+                    {supplier.phone1}
                   </p>
                 </div>
+                {supplier.phone2 && (
+                  <div className="space-y-1">
+                    <p className="text-sm text-muted-foreground">Phone 2</p>
+                    <p className="font-medium flex items-center gap-2">
+                      <Phone className="h-4 w-4 text-muted-foreground" />
+                      {supplier.phone2}
+                    </p>
+                  </div>
+                )}
+                {supplier.phone3 && (
+                  <div className="space-y-1">
+                    <p className="text-sm text-muted-foreground">Phone 3</p>
+                    <p className="font-medium flex items-center gap-2">
+                      <Phone className="h-4 w-4 text-muted-foreground" />
+                      {supplier.phone3}
+                    </p>
+                  </div>
+                )}
                 <div className="space-y-1">
                   <p className="text-sm text-muted-foreground">Address</p>
                   <p className="font-medium flex items-center gap-2">
@@ -143,6 +161,12 @@ export function SupplierDetailsDialog({
                     {supplier.address}
                   </p>
                 </div>
+                {supplier.city && (
+                  <div className="space-y-1">
+                    <p className="text-sm text-muted-foreground">City</p>
+                    <p className="font-medium">{supplier.city}</p>
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>

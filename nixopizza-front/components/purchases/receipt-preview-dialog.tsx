@@ -186,7 +186,7 @@ const ReceiptPDF = ({ order }: { order: IOrder }) => (
           </View>
           <View style={styles.detailItem}>
             <Text style={styles.detailLabel}>Phone:</Text>
-            <Text style={styles.detailValue}>{order.supplierId?.phone}</Text>
+            <Text style={styles.detailValue}>{order.supplierId?.phone1}</Text>
           </View>
         </View>
       </View>
@@ -329,7 +329,7 @@ export function ReceiptPreviewDialog({
                 </p>
                 <p className="flex">
                   <span className="font-medium w-24">Phone:</span>
-                  <span>{order?.supplierId?.phone}</span>
+                  <span>{order?.supplierId?.phone1}</span>
                 </p>
               </div>
             </div>

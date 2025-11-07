@@ -60,6 +60,8 @@ export function PurchaseOrderDialog({
         return "default";
       case "Paid":
         return "default";
+      case "canceled":
+        return "destructive";
       default:
         return "secondary";
     }

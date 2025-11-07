@@ -19,7 +19,7 @@ export interface IOrder {
     _id: string;
     image: string;
     address: string;
-    phone: string;
+    phone1: string;
     contactPerson: string;
   };
   staffId: {
@@ -28,7 +28,7 @@ export interface IOrder {
     _id: string;
     avatar: string;
   } | null;
-  status: "not assigned" | "assigned" | "confirmed" | "paid";
+  status: "not assigned" | "assigned" | "confirmed" | "paid" | "canceled";
   totalAmount: number;
   items: {
     productId: {
@@ -50,6 +50,8 @@ export interface IOrder {
   assignedDate: Date;
   confirmedDate: Date;
   paidDate: Date;
+  expectedDate: Date;
+  canceledDate: Date;
 }
 
 export default function PurchasesPage() {

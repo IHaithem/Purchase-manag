@@ -4,7 +4,8 @@ export const pushNotification = async (
   title: string,
   message: string,
   type: "low_stock" | "budget_alert" | "expiry_warning" | "complited_task",
-  actionUrl?: string
+  actionUrl?: string,
+  recipientRole?: string
 ) => {
-  await Notification.create({ title, message, type, actionUrl });
+  await Notification.create({ title, message, type, actionUrl, recipientRole });
 };

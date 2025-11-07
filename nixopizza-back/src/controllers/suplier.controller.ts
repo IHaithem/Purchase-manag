@@ -8,7 +8,7 @@ export const createSupplier = async (
   res: Response
 ): Promise<void> => {
   try {
-    const { name, contactPerson, email, phone, address, categoryIds, notes } =
+    const { name, contactPerson, email, phone1, phone2, phone3, city, address, categoryIds, notes } =
       req.body;
 
     const existingSupplier = await Supplier.findOne({ email });
@@ -24,7 +24,10 @@ export const createSupplier = async (
       name,
       contactPerson,
       email,
-      phone,
+      phone1,
+      phone2,
+      phone3,
+      city,
       address,
       notes,
       categoryIds,
@@ -129,7 +132,10 @@ export const updateSupplier = async (
       address,
       contactPerson,
       email,
-      phone,
+      phone1,
+      phone2,
+      phone3,
+      city,
       categoryIds,
       notes,
       isActive,
@@ -146,7 +152,10 @@ export const updateSupplier = async (
     if (address) supplier.address = address;
     if (contactPerson) supplier.contactPerson = contactPerson;
     if (email) supplier.email = email;
-    if (phone) supplier.phone = phone;
+    if (phone1) supplier.phone1 = phone1;
+    if (phone2 !== undefined) supplier.phone2 = phone2;
+    if (phone3 !== undefined) supplier.phone3 = phone3;
+    if (city !== undefined) supplier.city = city;
     if (categoryIds) supplier.categoryIds = categoryIds;
     if (notes) supplier.notes = notes;
     if (typeof isActive !== "undefined") supplier.isActive = isActive;
