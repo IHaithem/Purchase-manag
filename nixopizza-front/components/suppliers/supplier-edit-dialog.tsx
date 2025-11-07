@@ -53,8 +53,11 @@ export function SupplierEditDialog({
     name: "",
     contactPerson: "",
     email: "",
-    phone: "",
+    phone1: "",
+    phone2: "",
+    phone3: "",
     address: "",
+    city: "",
     isActive: true,
     notes: "",
     categoryIds: [] as string[],
@@ -78,8 +81,11 @@ export function SupplierEditDialog({
         name: supplier.name,
         contactPerson: supplier.contactPerson,
         email: supplier.email,
-        phone: supplier.phone,
+        phone1: supplier.phone1,
+        phone2: supplier.phone2 || "",
+        phone3: supplier.phone3 || "",
         address: supplier.address,
+        city: supplier.city || "",
         isActive: supplier.isActive,
         notes: supplier.notes || "",
         categoryIds: supplier.categoryIds,
@@ -101,8 +107,11 @@ export function SupplierEditDialog({
         name: "",
         contactPerson: "",
         email: "",
-        phone: "",
+        phone1: "",
+        phone2: "",
+        phone3: "",
         address: "",
+        city: "",
         isActive: true,
         notes: "",
         categoryIds: [],
@@ -120,8 +129,11 @@ export function SupplierEditDialog({
     supplierData.append("name", formData.name);
     supplierData.append("contactPerson", formData.contactPerson);
     supplierData.append("email", formData.email);
-    supplierData.append("phone", formData.phone);
+    supplierData.append("phone1", formData.phone1);
+    if (formData.phone2) supplierData.append("phone2", formData.phone2);
+    if (formData.phone3) supplierData.append("phone3", formData.phone3);
     supplierData.append("address", formData.address);
+    if (formData.city) supplierData.append("city", formData.city);
     supplierData.append("isActive", formData.isActive.toString()); // Convert to string
     supplierData.append("notes", formData.notes);
 
@@ -276,32 +288,73 @@ export function SupplierEditDialog({
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="phone" className="text-sm font-medium">
-                Phone
+              <Label htmlFor="phone1" className="text-sm font-medium">
+                Phone 1
               </Label>
               <Input
-                id="phone"
-                value={formData.phone}
-                onChange={(e) => handleInputChange("phone", e.target.value)}
-                placeholder="Enter phone number"
+                id="phone1"
+                value={formData.phone1}
+                onChange={(e) => handleInputChange("phone1", e.target.value)}
+                placeholder="Enter primary phone number"
                 required
                 className="py-5 border-2 border-input focus-visible:ring-2 focus-visible:ring-primary/30 rounded-lg"
               />
             </div>
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="address" className="text-sm font-medium">
-              Address
-            </Label>
-            <Input
-              id="address"
-              value={formData.address}
-              onChange={(e) => handleInputChange("address", e.target.value)}
-              placeholder="Enter full address"
-              required
-              className="py-5 border-2 border-input focus-visible:ring-2 focus-visible:ring-primary/30 rounded-lg"
-            />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="space-y-2">
+              <Label htmlFor="phone2" className="text-sm font-medium">
+                Phone 2 (Optional)
+              </Label>
+              <Input
+                id="phone2"
+                value={formData.phone2}
+                onChange={(e) => handleInputChange("phone2", e.target.value)}
+                placeholder="Enter secondary phone number"
+                className="py-5 border-2 border-input focus-visible:ring-2 focus-visible:ring-primary/30 rounded-lg"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="phone3" className="text-sm font-medium">
+                Phone 3 (Optional)
+              </Label>
+              <Input
+                id="phone3"
+                value={formData.phone3}
+                onChange={(e) => handleInputChange("phone3", e.target.value)}
+                placeholder="Enter tertiary phone number"
+                className="py-5 border-2 border-input focus-visible:ring-2 focus-visible:ring-primary/30 rounded-lg"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="space-y-2">
+              <Label htmlFor="address" className="text-sm font-medium">
+                Address
+              </Label>
+              <Input
+                id="address"
+                value={formData.address}
+                onChange={(e) => handleInputChange("address", e.target.value)}
+                placeholder="Enter full address"
+                required
+                className="py-5 border-2 border-input focus-visible:ring-2 focus-visible:ring-primary/30 rounded-lg"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="city" className="text-sm font-medium">
+                City (Optional)
+              </Label>
+              <Input
+                id="city"
+                value={formData.city}
+                onChange={(e) => handleInputChange("city", e.target.value)}
+                placeholder="Enter city"
+                className="py-5 border-2 border-input focus-visible:ring-2 focus-visible:ring-primary/30 rounded-lg"
+              />
+            </div>
           </div>
 
           {/* Image Upload */}
