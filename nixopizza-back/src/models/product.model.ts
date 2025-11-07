@@ -9,6 +9,7 @@ export interface IProduct extends Document {
   currentStock: number;
   minQty: number;
   recommendedQty: number;
+  description: string;
   createdAt?: Date;
   updatedAt?: Date;
 }
@@ -49,6 +50,10 @@ const productSchema = new Schema<IProduct>(
     recommendedQty: {
       type: Number,
       default: 0,
+    },
+    description: {
+      type: String,
+      default: "",
     },
   },
   {
