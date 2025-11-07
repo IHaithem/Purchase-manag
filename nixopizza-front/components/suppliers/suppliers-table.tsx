@@ -130,7 +130,7 @@ export function SuppliersTable({
                   <TableHead>Supplier</TableHead>
                   <TableHead>Contact Person</TableHead>
                   <TableHead>email</TableHead>
-                  <TableHead>phone</TableHead>
+                  <TableHead>Phone</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead className="w-[50px]"></TableHead>
                 </TableRow>
@@ -170,7 +170,7 @@ export function SuppliersTable({
                     <TableCell>
                       <div className="flex items-center gap-1 text-sm">
                         <Phone className="h-3 w-3" />
-                        {supplier.phone}
+                        {supplier.phone1}
                       </div>
                     </TableCell>
 
