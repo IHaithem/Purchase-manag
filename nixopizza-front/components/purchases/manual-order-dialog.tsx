@@ -61,6 +61,7 @@ export function ManualOrderDialog({
     { productId: "", quantity: 1, unitCost: 0, expirationDate: new Date() },
   ]);
   const [notes, setNotes] = useState("");
+  const [expectedDate, setExpectedDate] = useState<Date | undefined>(undefined);
   const [billFile, setBillFile] = useState<File | null>(null);
   const [billPreview, setBillPreview] = useState<string | null>(null);
 
@@ -216,6 +217,9 @@ export function ManualOrderDialog({
       const dataToSend = new FormData();
       dataToSend.append("supplierId", selectedSupplier._id);
       dataToSend.append("notes", notes);
+      if (expectedDate) {
+        dataToSend.append("expectedDate", expectedDate.toISOString());
+      }
 
       // Add bill if provided
       if (billFile) {
@@ -521,19 +525,33 @@ export function ManualOrderDialog({
               </div>
             </div> */}
 
-          {/* Notes */}
-          <div className="space-y-2">
-            <Label htmlFor="notes" className="text-sm font-medium">
-              Notes (Optional)
-            </Label>
-            <Textarea
-              id="notes"
-              placeholder="Add any special instructions or notes for this order..."
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              rows={3}
-              className="border-2 border-input focus:ring-2 focus:ring-primary/30 rounded-lg"
-            />
+          {/* Notes and Expected Date */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="space-y-2">
+              <Label htmlFor="notes" className="text-sm font-medium">
+                Notes (Optional)
+              </Label>
+              <Textarea
+                id="notes"
+                placeholder="Add any special instructions or notes for this order..."
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                rows={3}
+                className="border-2 border-input focus:ring-2 focus:ring-primary/30 rounded-lg"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="expectedDate" className="text-sm font-medium">
+                Expected Date (Optional)
+              </Label>
+              <Input
+                id="expectedDate"
+                type="date"
+                value={expectedDate ? expectedDate.toISOString().split('T')[0] : ''}
+                onChange={(e) => setExpectedDate(e.target.value ? new Date(e.target.value) : undefined)}
+                className="border-2 border-input focus:ring-2 focus:ring-primary/30 rounded-lg"
+              />
+            </div>
           </div>
 
           <DialogFooter className="gap-2">

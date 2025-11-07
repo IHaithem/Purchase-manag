@@ -148,6 +148,7 @@ export function PurchasesHeader({
               <SelectItem value="assigned">Assigned</SelectItem>
               <SelectItem value="confirmed">Confirmed</SelectItem>
               <SelectItem value="paid">Paid</SelectItem>
+              <SelectItem value="canceled">Canceled</SelectItem>
             </SelectContent>
           </Select>
 

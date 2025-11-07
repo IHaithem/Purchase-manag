@@ -44,7 +44,9 @@ export function StuffEditDialog({
   const [formData, setFormData] = useState({
     fullname: "",
     email: "",
-    phone: "",
+    phone1: "",
+    phone2: "",
+    phone3: "",
     address: "",
     isActive: true, // ✅ boolean, not Boolean constructor
     notes: "",
@@ -57,7 +59,9 @@ export function StuffEditDialog({
       setFormData({
         fullname: stuff.fullname || "",
         email: stuff.email || "",
-        phone: stuff.phone || "",
+        phone1: stuff.phone1 || "",
+        phone2: stuff.phone2 || "",
+        phone3: stuff.phone3 || "",
         address: stuff.address || "",
         isActive: stuff.isActive, // ✅ boolean from backend
         notes: "",
@@ -99,7 +103,9 @@ export function StuffEditDialog({
       // Add text fields
       payload.append("fullname", formData.fullname);
       payload.append("email", formData.email);
-      if (formData.phone) payload.append("phone", formData.phone);
+      if (formData.phone1) payload.append("phone1", formData.phone1);
+      if (formData.phone2) payload.append("phone2", formData.phone2);
+      if (formData.phone3) payload.append("phone3", formData.phone3);
       if (formData.address) payload.append("address", formData.address);
 
       // ✅ Convert boolean to string for backend compatibility
@@ -201,13 +207,35 @@ export function StuffEditDialog({
                 required
               />
             </div>
+          </div>
+
+          {/* Phone Numbers */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="phone">Phone</Label>
+              <Label htmlFor="phone1">Phone 1</Label>
               <Input
-                id="phone"
-                value={formData.phone}
-                onChange={(e) => handleInputChange("phone", e.target.value)}
-                placeholder=""
+                id="phone1"
+                value={formData.phone1}
+                onChange={(e) => handleInputChange("phone1", e.target.value)}
+                placeholder="+1 (555) 000-0000"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="phone2">Phone 2</Label>
+              <Input
+                id="phone2"
+                value={formData.phone2}
+                onChange={(e) => handleInputChange("phone2", e.target.value)}
+                placeholder="+1 (555) 000-0001"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="phone3">Phone 3</Label>
+              <Input
+                id="phone3"
+                value={formData.phone3}
+                onChange={(e) => handleInputChange("phone3", e.target.value)}
+                placeholder="+1 (555) 000-0002"
               />
             </div>
           </div>
