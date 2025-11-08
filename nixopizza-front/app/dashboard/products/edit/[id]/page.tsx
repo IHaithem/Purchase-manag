@@ -53,6 +53,7 @@ export default function EditProductPage() {
     recommendedQty: 0,
     barcode: "",
     unit: "",
+    description: "",
     image: null,
   });
 
@@ -331,6 +332,22 @@ export default function EditProductPage() {
                     
                   </SelectContent>
                 </Select>
+              </div>
+              
+              <div className="space-y-2 md:col-span-2">
+                <Label htmlFor="description" className="text-sm font-medium">
+                  Description (Optional)
+                </Label>
+                <Textarea
+                  id="description"
+                  value={formData.description || ""}
+                  onChange={(e) =>
+                    handleInputChange("description", e.target.value)
+                  }
+                  placeholder="Enter product description"
+                  rows={3}
+                  className="resize-y border-2 border-input focus-visible:ring-2 focus-visible:ring-primary/30 rounded-lg"
+                />
               </div>
             </CardContent>
           </Card>

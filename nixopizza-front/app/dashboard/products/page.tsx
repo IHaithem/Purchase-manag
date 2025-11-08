@@ -18,6 +18,7 @@ export interface IProduct {
     image: string;
   };
   imageUrl: string;
+  description?: string;
   currentStock: number;
   minQty: number;
   recommendedQty: number;

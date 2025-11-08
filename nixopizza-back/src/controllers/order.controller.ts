@@ -19,6 +19,7 @@ export const createOrder = async (
       items,
       supplierId,
       notes,
+      expectedDate,
     }: {
       items: {
         productId: string;
@@ -28,6 +29,7 @@ export const createOrder = async (
       }[];
       supplierId: string;
       notes: string;
+      expectedDate?: Date;
     } = req.body;
 
 
@@ -65,6 +67,7 @@ export const createOrder = async (
       status: "not assigned", // Start as "not assigned"
       totalAmount,
       notes,
+      expectedDate,
       orderNumber: generateOrderNumber(),
     });
 
@@ -196,9 +199,9 @@ export const updateOrder = async (
 ): Promise<void> => {
   try {
     const orderId = req.params.orderId;
-    const { status } = req.body;
+    const { status, expectedDate, canceledDate } = req.body;
 
-    const validStatuses = ["not assigned", "assigned", "confirmed", "paid"];
+    const validStatuses = ["not assigned", "assigned", "confirmed", "paid", "canceled"];
     if (status && !validStatuses.includes(status)) {
       res.status(400).json({
         message: `Invalid status. Use one of: ${validStatuses.join(", ")}`,
@@ -216,6 +219,17 @@ export const updateOrder = async (
     if (status === "paid" && order.status === "confirmed") {
       order.status = "paid";
       order.paidDate = new Date();
+    }
+
+    // Handle status change to canceled
+    if (status === "canceled") {
+      order.status = "canceled";
+      order.canceledDate = canceledDate ? new Date(canceledDate) : new Date();
+    }
+
+    // Update expectedDate if provided
+    if (expectedDate !== undefined) {
+      order.expectedDate = expectedDate ? new Date(expectedDate) : undefined;
     }
 
     await order.save();
@@ -294,7 +308,7 @@ export const getOrdersByFilter = async (
         { path: "staffId", select: "avatar email fullname" },
         {
           path: "supplierId",
-          select: "email name image contactPerson address phone",
+          select: "email name image contactPerson address phone1 phone2 phone3 city",
         },
         {
           path: "items",

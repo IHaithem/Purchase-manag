@@ -7,7 +7,7 @@ export const createProduct = async (
   res: Response
 ): Promise<void> => {
   try {
-    const { name, barcode, unit, categoryId, currentStock, minQty, recommendedQty } =
+    const { name, barcode, unit, categoryId, description, currentStock, minQty, recommendedQty } =
       req.body;
 
     if (!name || !unit || !categoryId || !currentStock || !minQty) {
@@ -25,6 +25,7 @@ export const createProduct = async (
       barcode,
       unit,
       categoryId,
+      description,
       currentStock,
       minQty,
       recommendedQty,
@@ -48,9 +49,9 @@ export const updateProduct = async (
 ): Promise<void> => {
   try {
     console.log("Product Body : ", req.body);
-    const { name, barcode, unit, categoryId, currentStock, minQty, recommendedQty } =
+    const { name, barcode, unit, categoryId, description, currentStock, minQty, recommendedQty } =
       req.body;
-    console.log(name, barcode, unit, categoryId, currentStock, minQty, recommendedQty);
+    console.log(name, barcode, unit, categoryId, description, currentStock, minQty, recommendedQty);
 
     console.log("Updated Product");
 
@@ -64,6 +65,7 @@ export const updateProduct = async (
     if (barcode) product.barcode = barcode;
     if (unit) product.unit = unit;
     if (categoryId) product.categoryId = categoryId;
+    if (description !== undefined) product.description = description;
 
     //TODO: should be handeled in the front and send it as a number not string
     if (currentStock){ product.currentStock = Number(currentStock);

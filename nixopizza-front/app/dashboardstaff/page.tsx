@@ -12,7 +12,7 @@ import { cn } from "@/lib/utils";
 
 interface IOrder {
   _id: string;
-  status: "not assigned" | "assigned" | "confirmed" | "paid";
+  status: "not assigned" | "assigned" | "confirmed" | "paid" | "canceled";
   createdAt: string;
   supplierId: {
     name: string;

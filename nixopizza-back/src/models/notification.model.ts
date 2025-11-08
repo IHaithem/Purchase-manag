@@ -6,6 +6,7 @@ export interface INotification {
   title: string;
   message: string;
   isRead: boolean;
+  recipientRole?: string;
   actionUrl?: string;
   createdAt: Date;
   updatedAt: Date;
@@ -23,6 +24,7 @@ const notificationSchema = new Schema<INotification>(
       type: Boolean,
       default: false,
     },
+    recipientRole: String,
     actionUrl: String,
   },
   { timestamps: true }

@@ -41,7 +41,9 @@ export function AddStuffDialog({
     contactPerson: "",
     email: "",
     password: "",
-    phone: "",
+    phone1: "",
+    phone2: "",
+    phone3: "",
     address: "",
     status: "Active",
     notes: "",
@@ -84,7 +86,9 @@ export function AddStuffDialog({
     payload.append("fullname", formData.fullname);
     payload.append("email", formData.email);
     payload.append("password", formData.password);
-    if (formData.phone) payload.append("phone", formData.phone);
+    if (formData.phone1) payload.append("phone1", formData.phone1);
+    if (formData.phone2) payload.append("phone2", formData.phone2);
+    if (formData.phone3) payload.append("phone3", formData.phone3);
     if (formData.address) payload.append("address", formData.address);
     payload.append("status", formData.status);
     if (formData.notes) payload.append("notes", formData.notes);
@@ -220,19 +224,40 @@ export function AddStuffDialog({
             </div>
           </div>
 
-          {/* Phone & Address */}
+          {/* Phone Numbers */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="phone">Phone Number</Label>
+              <Label htmlFor="phone1">Phone 1 (Optional)</Label>
               <Input
-                id="phone"
-                value={formData.phone}
-                onChange={(e) => handleInputChange("phone", e.target.value)}
+                id="phone1"
+                value={formData.phone1}
+                onChange={(e) => handleInputChange("phone1", e.target.value)}
                 placeholder="+1 (555) 000-0000"
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="address">Address</Label>
+              <Label htmlFor="phone2">Phone 2 (Optional)</Label>
+              <Input
+                id="phone2"
+                value={formData.phone2}
+                onChange={(e) => handleInputChange("phone2", e.target.value)}
+                placeholder="+1 (555) 000-0000"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="phone3">Phone 3 (Optional)</Label>
+              <Input
+                id="phone3"
+                value={formData.phone3}
+                onChange={(e) => handleInputChange("phone3", e.target.value)}
+                placeholder="+1 (555) 000-0000"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="address">Address (Optional)</Label>
               <Input
                 id="address"
                 value={formData.address}
