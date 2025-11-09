@@ -14,6 +14,7 @@ interface ProductSelectProps {
   onProductChange: (product: IProduct | null) => void;
   placeholder?: string;
   className?: string;
+  disabled?: boolean;
 }
 
 export function ProductSelect({
@@ -22,6 +23,7 @@ export function ProductSelect({
   onProductChange,
   placeholder = "Select a product...",
   className,
+  disabled = false,
 }: ProductSelectProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
@@ -29,40 +31,46 @@ export function ProductSelect({
   const [isLoading, setIsLoading] = useState(true);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Fetch products if not provided via props
+  // Synchronize provided products prop or fetch when missing
   useEffect(() => {
-    const fetchProducts = async () => {
-      if (!products) {
-        // Only fetch if products prop is not provided
-        try {
-          const response = await getProducts();
-          console.log("Fetched products response:", response);
+    let isMounted = true;
 
-          // Check if response has products property
+    const fetchProducts = async () => {
+      try {
+        if (!products) {
+          const response = await getProducts();
+          if (!isMounted) return;
+
+
           if (response && Array.isArray(response.products)) {
             setLocalProducts(response.products || []);
           } else if (response && Array.isArray(response)) {
-            // If response is directly an array
+
             setLocalProducts(response);
           } else {
             console.error("Unexpected response format:", response);
             setLocalProducts([]);
           }
-        } catch (error) {
-          console.error("Error fetching products:", error);
-          setLocalProducts([]);
-        } finally {
-          setIsLoading(false);
+        } else {
+          setLocalProducts(products);
         }
-      } else {
-        setLocalProducts(products);
-        setIsLoading(false);
+      } catch (err) {
+        console.error("Error fetching products:", err);
+        setLocalProducts([]);
+      } finally {
+        if (isMounted) setIsLoading(false);
       }
     };
 
+    setIsLoading(true);
     fetchProducts();
+
+    return () => {
+      isMounted = false;
+    };
   }, [products]);
 
+  // Close dropdown if clicking outside
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (
@@ -75,24 +83,32 @@ export function ProductSelect({
     }
 
     document.addEventListener("mousedown", handleClickOutside);
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-    };
+    return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  // Ensure dropdown closes when disabled toggles on
+  useEffect(() => {
+    if (disabled) {
+      setIsOpen(false);
+      setSearchTerm("");
+    }
+  }, [disabled]);
+
   const handleSelect = (product: IProduct) => {
+    if (disabled) return;
     onProductChange(product);
     setIsOpen(false);
     setSearchTerm("");
   };
 
-  const handleClear = (e: React.MouseEvent) => {
-    e.stopPropagation();
+  const handleClear = () => {
+    if (disabled) return;
     onProductChange(null);
     setSearchTerm("");
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (disabled) return;
     const value = e.target.value;
     setSearchTerm(value);
 
@@ -102,6 +118,7 @@ export function ProductSelect({
   };
 
   const handleInputClick = (e: React.MouseEvent) => {
+    if (disabled) return;
     e.stopPropagation();
     if (!isOpen) {
       setIsOpen(true);
@@ -132,16 +149,23 @@ export function ProductSelect({
   }
 
   return (
-    <div className={cn("relative", className)} ref={containerRef}>
+    <div
+      className={cn("relative", className)}
+      ref={containerRef}
+      aria-disabled={disabled || undefined}
+    >
       {/* Searchable input display */}
       <div
         className={cn(
           "flex items-center justify-between rounded-md border bg-background px-3 py-2 text-sm",
-          "cursor-text hover:border-accent hover:text-accent-foreground",
+          disabled
+            ? "opacity-50 cursor-not-allowed"
+            : "cursor-text hover:border-accent hover:text-accent-foreground",
           "focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2",
           "transition-colors"
         )}
         onClick={() => {
+          if (disabled) return;
           setIsOpen(true);
           if (selectedProduct) {
             setSearchTerm(selectedProduct.name);
@@ -174,7 +198,11 @@ export function ProductSelect({
             onChange={handleInputChange}
             onClick={handleInputClick}
             placeholder={selectedProduct ? selectedProduct.name : placeholder}
-            className="w-full bg-transparent border-none focus:outline-none focus:ring-0"
+            className={cn(
+              "w-full bg-transparent border-none focus:outline-none focus:ring-0",
+              disabled && "cursor-not-allowed"
+            )}
+            disabled={disabled}
           />
         )}
 
@@ -183,7 +211,11 @@ export function ProductSelect({
             <button
               type="button"
               onClick={handleClear}
-              className="p-0.5 rounded-full hover:bg-muted"
+              className={cn(
+                "p-0.5 rounded-full hover:bg-muted",
+                disabled && "pointer-events-none opacity-50"
+              )}
+              disabled={disabled}
             >
               <X className="h-4 w-4" />
             </button>
@@ -193,7 +225,7 @@ export function ProductSelect({
       </div>
 
       {/* Dropdown content */}
-      {isOpen && (
+      {isOpen && !disabled && (
         <div className="absolute z-50 mt-1 w-full rounded-md border bg-popover p-1 text-popover-foreground shadow-md">
           <div className="max-h-60 overflow-auto">
             {filteredProducts && filteredProducts.length > 0 ? (
@@ -209,7 +241,9 @@ export function ProductSelect({
                 >
                   {product.imageUrl ? (
                     <img
-                      src={process.env.NEXT_PUBLIC_BASE_URL + product.imageUrl}
+                      src={
+                        process.env.NEXT_PUBLIC_BASE_URL + product.imageUrl
+                      }
                       alt={product.name}
                       className="w-8 h-8 rounded-full object-cover"
                     />

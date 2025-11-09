@@ -332,7 +332,7 @@ export function ManualOrderDialog({
             />
             {selectedSupplier && (
               <div className="text-sm text-muted-foreground mt-2">
-                Contact: {selectedSupplier.phone} • {selectedSupplier.email}
+                Contact: {selectedSupplier.phone1} • {selectedSupplier.email}
               </div>
             )}
             {selectedSupplier && filteredProducts.length === 0 && (
