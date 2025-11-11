@@ -25,13 +25,26 @@ export default async function connectDB() {
 
   console.log("🔌 Attempting to connect to MongoDB...");
   
+  // Disconnect any existing connection first
+  if (mongoose.connection.readyState !== 0) {
+    console.log("⚠️ Closing existing connection...");
+    await mongoose.disconnect();
+  }
+  
   global.__mongooseConn = mongoose.connect(uri, {
-    serverSelectionTimeoutMS: 8000,
+    serverSelectionTimeoutMS: 30000,  // 30 seconds
+    socketTimeoutMS: 45000,            // 45 seconds
+    connectTimeoutMS: 30000,           // 30 seconds
+    family: 4,                         // Use IPv4, skip trying IPv6
   }).then((conn) => {
     console.log("✅ MongoDB connected successfully!");
+    console.log("📊 Connection state:", mongoose.connection.readyState);
     return conn;
   }).catch((err) => {
-    console.error("❌ MongoDB connection failed:", err.message);
+    console.error("❌ MongoDB connection failed!");
+    console.error("Error name:", err.name);
+    console.error("Error message:", err.message);
+    global.__mongooseConn = undefined; // Clear the failed connection
     throw err;
   });
 
