@@ -59,6 +59,25 @@ app.get("/api/health", (_req: Request, res: Response) => {
   res.json({ ok: true });
 });
 
+app.get("/api/debug-db", async (_req: Request, res: Response) => {
+  try {
+    const uri = (process.env.MONGODB_URI || process.env.MONGO_URI || "").trim();
+    
+    res.json({
+      hasMongoDBUri: !!process.env.MONGODB_URI,
+      hasMongoUri: !!process.env.MONGO_URI,
+      uriLength: uri.length,
+      uriStart: uri.substring(0, 30),
+      uriEnd: uri.substring(uri.length - 30),
+      hasDatabaseName: uri.includes("/NEXO"),
+      mongooseState: require('mongoose').connection.readyState,
+      // 0 = disconnected, 1 = connected, 2 = connecting, 3 = disconnecting
+    });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 app.use("/api/auth", authRouter);
 app.use("/api/admin", adminRouter);
 app.use("/api/products", productRouter);
