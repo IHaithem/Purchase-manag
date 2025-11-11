@@ -115,14 +115,14 @@ const startServer = async () => {
     }
   } catch (err) {
     console.error("❌ Failed to start server:", err);
-    process.exit(1);
+    if (process.env.NODE_ENV !== 'production') {
+      process.exit(1);
+    }
   }
 };
 
-// Run startup for local development
-if (process.env.NODE_ENV !== 'production') {
-  startServer();
-}
+// Always run startup (both local and production)
+startServer();
 
 // Export for Vercel
 module.exports = app;
