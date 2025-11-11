@@ -39,7 +39,7 @@ const allowedOrigins = [
   process.env.ADMIN_ORIGIN ?? "",
   process.env.PROD_CLIENT_ORIGIN ?? "",
   process.env.PROD_ADMIN_ORIGIN ?? "",
-  "https://purchase-managementfront-lq9lbsm5w-haithem-fellahs-projects.vercel.app/",
+  "https://purchase-manag-front-8pifqimlc-haithem-fellahs-projects.vercel.app/",
   "http://localhost:3000", // For local development
   "http://localhost:3001", // For local development (if different port)
 ];
