@@ -33,8 +33,11 @@ app.use("/uploads", express.static(UPLOADS_DIR));
 const allowedOrigins = [
   process.env.CLIENT_ORIGIN ?? "",
   process.env.ADMIN_ORIGIN ?? "",
-  process.env.PROD_CLIENT_ORIGIN ?? "https://<your-client>.vercel.app",
-  process.env.PROD_ADMIN_ORIGIN ?? "https://<your-admin>.vercel.app",
+  process.env.PROD_CLIENT_ORIGIN ?? "",
+  process.env.PROD_ADMIN_ORIGIN ?? "",
+  "https://purchase-managementfront-lq9lbsm5w-haithem-fellahs-projects.vercel.app/",
+  "http://localhost:3000", // For local development
+  "http://localhost:3001", // For local development (if different port)
 ];
 
 app.use(
@@ -95,20 +98,27 @@ const startServer = async () => {
   try {
     await connectDB();
     console.log("✅ Connected to MongoDB");
-
-    // ensure admin exists
+    
     await ensureAdmin();
-
-    // Start cron jobs *after* DB is connected
+    
     initializeExpirationMonitoring();
-
-    app.listen(PORT, () => {
-      console.log(`🚀 Server running on port ${PORT}`);
-    });
+    
+    // Only run server locally, not on Vercel
+    if (process.env.NODE_ENV !== 'production') {
+      app.listen(PORT, () => {
+        console.log(`🚀 Server running on port ${PORT}`);
+      });
+    }
   } catch (err) {
     console.error("❌ Failed to start server:", err);
     process.exit(1);
   }
 };
 
-startServer();
+// Run startup for local development
+if (process.env.NODE_ENV !== 'production') {
+  startServer();
+}
+
+// Export for Vercel
+export default app;
