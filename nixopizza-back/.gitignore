@@ -60,3 +60,4 @@ src/uploads/
 .env.production     # (Optional: Ignore production env)
 .env.development    # (Optional: Ignore dev env)
 dump.rdb            # Redis database backup.env
+.env
