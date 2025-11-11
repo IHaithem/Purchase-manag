@@ -98,31 +98,53 @@ async function ensureAdmin() {
   console.log("🚀 Admin created:", admin.email);
 }
 
-const startServer = async () => {
+let isInitialized = false;
+
+const initializeApp = async () => {
+  if (isInitialized) {
+    console.log("🔄 App already initialized");
+    return;
+  }
+
   try {
-    await connectDB();
-    console.log("✅ Connected to MongoDB");
+    console.log("🔍 Initializing app...");
+    console.log("MONGODB_URI exists:", !!process.env.MONGODB_URI);
+    console.log("MONGO_URI exists:", !!process.env.MONGO_URI);
     
+    // FIRST: Connect to database and WAIT for it
+    console.log("🔌 Connecting to MongoDB...");
+    await connectDB();
+    console.log("✅ MongoDB connected successfully!");
+    
+    // SECOND: Create admin user (requires DB connection)
+    console.log("👤 Checking admin user...");
     await ensureAdmin();
     
+    // THIRD: Initialize monitoring (requires DB connection)
+    console.log("📊 Initializing expiration monitoring...");
     initializeExpirationMonitoring();
     
-    // Only run server locally, not on Vercel
-    if (process.env.NODE_ENV !== 'production') {
-      app.listen(PORT, () => {
-        console.log(`🚀 Server running on port ${PORT}`);
-      });
-    }
+    isInitialized = true;
+    console.log("✅ App initialization complete!");
   } catch (err) {
-    console.error("❌ Failed to start server:", err);
-    if (process.env.NODE_ENV !== 'production') {
-      process.exit(1);
-    }
+    console.error("❌ Failed to initialize app:", err);
+    // Mark as not initialized so it retries on next request
+    isInitialized = false;
   }
 };
 
-// Always run startup (both local and production)
-startServer();
+// Initialize on module load
+initializeApp().catch(err => {
+  console.error("❌ Initialization error:", err);
+});
+
+// For local development
+if (process.env.NODE_ENV !== 'production') {
+  const PORT = process.env.PORT || 5000;
+  app.listen(PORT, () => {
+    console.log(`🚀 Server running on port ${PORT}`);
+  });
+}
 
 // Export for Vercel
-module.exports = app;
+export default app;
