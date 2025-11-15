@@ -19,9 +19,8 @@ import taskRouter from "./routes/task.router";
 import supplierRouter from "./routes/supplier.router";
 import notificationRouter from "./routes/notification.router";
 
-
 // Only load .env file in development
-if (process.env.NODE_ENV !== 'production') {
+if (process.env.NODE_ENV !== "production") {
   dotenv.config();
 }
 
@@ -34,27 +33,67 @@ app.use(cookieParser());
 const UPLOADS_DIR = path.resolve("src/uploads");
 app.use("/uploads", express.static(UPLOADS_DIR));
 
-const allowedOrigins = [
-  process.env.CLIENT_ORIGIN ?? "",
-  process.env.ADMIN_ORIGIN ?? "",
-  process.env.PROD_CLIENT_ORIGIN ?? "",
-  process.env.PROD_ADMIN_ORIGIN ?? "",
-  "https://purchase-manag-front-8pifqimlc-haithem-fellahs-projects.vercel.app/",
-  "http://localhost:3000", // For local development
-  "http://localhost:3001", // For local development (if different port)
-];
+/**
+ * CORS
+ * - Allow exact origins from env (no trailing slash)
+ * - Also allow Vercel preview URLs for the frontend:
+ *   purchase-manag-front-<anything>-haithem-fellahs-projects.vercel.app
+ */
+function normalizeOrigin(o?: string) {
+  if (!o) return "";
+  return o.trim().replace(/\/+$/, "");
+}
+
+const exactAllowedOrigins = [
+  normalizeOrigin(process.env.CLIENT_ORIGIN),        // e.g. http://localhost:3000
+  normalizeOrigin(process.env.ADMIN_ORIGIN),         // e.g. http://localhost:3000
+  normalizeOrigin(process.env.PROD_CLIENT_ORIGIN),   // e.g. https://purchase-manag-front.vercel.app
+  normalizeOrigin(process.env.PROD_ADMIN_ORIGIN),    // e.g. https://purchase-manag-front.vercel.app
+].filter(Boolean) as string[];
+
+// Convert to hostnames for robust comparison
+const exactAllowedHostnames = exactAllowedOrigins
+  .map((o) => {
+    try {
+      return new URL(o).hostname;
+    } catch {
+      return "";
+    }
+  })
+  .filter(Boolean);
+
+// Match Vercel preview URLs for this project
+const previewFrontendHostnameRegex =
+  /^purchase-manag-front-[a-z0-9-]+-haithem-fellahs-projects\.vercel\.app$/;
 
 app.use(
   cors({
     origin(origin, callback) {
-      if (!origin) return callback(null, true);
-      if (allowedOrigins.includes(origin)) return callback(null, true);
-      return callback(new Error("Not allowed by CORS"));
+      if (!origin) return callback(null, true); // same-origin/non-browser
+      try {
+        const { hostname } = new URL(origin);
+
+        const isExactAllowed = exactAllowedHostnames.includes(hostname);
+        const isPreviewAllowed = previewFrontendHostnameRegex.test(hostname);
+
+        if (isExactAllowed || isPreviewAllowed) {
+          return callback(null, true);
+        }
+
+        console.warn("CORS blocked origin:", origin);
+        return callback(new Error("Not allowed by CORS"));
+      } catch (e) {
+        console.warn("CORS invalid origin:", origin);
+        return callback(new Error("Invalid origin"));
+      }
     },
     credentials: true,
+    methods: ["GET", "HEAD", "PUT", "PATCH", "POST", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
   })
 );
 
+// Health/debug
 app.get("/api/health", (_req: Request, res: Response) => {
   res.json({ ok: true });
 });
@@ -62,7 +101,7 @@ app.get("/api/health", (_req: Request, res: Response) => {
 app.get("/api/debug-db", async (_req: Request, res: Response) => {
   try {
     const uri = (process.env.MONGODB_URI || process.env.MONGO_URI || "").trim();
-    
+
     res.json({
       hasMongoDBUri: !!process.env.MONGODB_URI,
       hasMongoUri: !!process.env.MONGO_URI,
@@ -70,7 +109,7 @@ app.get("/api/debug-db", async (_req: Request, res: Response) => {
       uriStart: uri.substring(0, 30),
       uriEnd: uri.substring(uri.length - 30),
       hasDatabaseName: uri.includes("/NEXO"),
-      mongooseState: require('mongoose').connection.readyState,
+      mongooseState: require("mongoose").connection.readyState,
       // 0 = disconnected, 1 = connected, 2 = connecting, 3 = disconnecting
     });
   } catch (error: any) {
@@ -95,9 +134,7 @@ async function ensureAdmin() {
   const password = process.env.ADMIN_PASSWORD;
 
   if (!fullname || !email || !password) {
-    console.warn(
-      "⚠️ ADMIN_FULLNAME, ADMIN_EMAIL or ADMIN_PASSWORD not set in .env"
-    );
+    console.warn("⚠️ ADMIN_FULLNAME, ADMIN_EMAIL or ADMIN_PASSWORD not set in .env");
     return;
   }
 
@@ -129,36 +166,35 @@ const initializeApp = async () => {
     console.log("🔍 Initializing app...");
     console.log("MONGODB_URI exists:", !!process.env.MONGODB_URI);
     console.log("MONGO_URI exists:", !!process.env.MONGO_URI);
-    
-    // FIRST: Connect to database and WAIT for it
+
+    // Connect to DB
     console.log("🔌 Connecting to MongoDB...");
     await connectDB();
     console.log("✅ MongoDB connected successfully!");
-    
-    // SECOND: Create admin user (requires DB connection)
+
+    // Seed admin
     console.log("👤 Checking admin user...");
     await ensureAdmin();
-    
-    // THIRD: Initialize monitoring (requires DB connection)
+
+    // Start expiration monitoring
     console.log("📊 Initializing expiration monitoring...");
     initializeExpirationMonitoring();
-    
+
     isInitialized = true;
     console.log("✅ App initialization complete!");
   } catch (err) {
     console.error("❌ Failed to initialize app:", err);
-    // Mark as not initialized so it retries on next request
     isInitialized = false;
   }
 };
 
 // Initialize on module load
-initializeApp().catch(err => {
+initializeApp().catch((err) => {
   console.error("❌ Initialization error:", err);
 });
 
 // For local development
-if (process.env.NODE_ENV !== 'production') {
+if (process.env.NODE_ENV !== "production") {
   const PORT = process.env.PORT || 5000;
   app.listen(PORT, () => {
     console.log(`🚀 Server running on port ${PORT}`);
