@@ -19,7 +19,7 @@ import taskRouter from "./routes/task.router";
 import supplierRouter from "./routes/supplier.router";
 import notificationRouter from "./routes/notification.router";
 
-// Only load .env file in development
+// Only load .env in development
 if (process.env.NODE_ENV !== "production") {
   dotenv.config();
 }
@@ -36,7 +36,7 @@ app.use("/uploads", express.static(UPLOADS_DIR));
 /**
  * CORS
  * - Allow exact origins from env (no trailing slash)
- * - Also allow Vercel preview URLs for the frontend:
+ * - Also allow Vercel preview URLs for this frontend project:
  *   purchase-manag-front-<anything>-haithem-fellahs-projects.vercel.app
  */
 function normalizeOrigin(o?: string) {
@@ -51,7 +51,6 @@ const exactAllowedOrigins = [
   normalizeOrigin(process.env.PROD_ADMIN_ORIGIN),    // e.g. https://purchase-manag-front.vercel.app
 ].filter(Boolean) as string[];
 
-// Convert to hostnames for robust comparison
 const exactAllowedHostnames = exactAllowedOrigins
   .map((o) => {
     try {
@@ -62,7 +61,6 @@ const exactAllowedHostnames = exactAllowedOrigins
   })
   .filter(Boolean);
 
-// Match Vercel preview URLs for this project
 const previewFrontendHostnameRegex =
   /^purchase-manag-front-[a-z0-9-]+-haithem-fellahs-projects\.vercel\.app$/;
 
@@ -82,7 +80,7 @@ app.use(
 
         console.warn("CORS blocked origin:", origin);
         return callback(new Error("Not allowed by CORS"));
-      } catch (e) {
+      } catch {
         console.warn("CORS invalid origin:", origin);
         return callback(new Error("Invalid origin"));
       }
@@ -101,7 +99,6 @@ app.get("/api/health", (_req: Request, res: Response) => {
 app.get("/api/debug-db", async (_req: Request, res: Response) => {
   try {
     const uri = (process.env.MONGODB_URI || process.env.MONGO_URI || "").trim();
-
     res.json({
       hasMongoDBUri: !!process.env.MONGODB_URI,
       hasMongoUri: !!process.env.MONGO_URI,
@@ -110,7 +107,6 @@ app.get("/api/debug-db", async (_req: Request, res: Response) => {
       uriEnd: uri.substring(uri.length - 30),
       hasDatabaseName: uri.includes("/NEXO"),
       mongooseState: require("mongoose").connection.readyState,
-      // 0 = disconnected, 1 = connected, 2 = connecting, 3 = disconnecting
     });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
@@ -167,16 +163,13 @@ const initializeApp = async () => {
     console.log("MONGODB_URI exists:", !!process.env.MONGODB_URI);
     console.log("MONGO_URI exists:", !!process.env.MONGO_URI);
 
-    // Connect to DB
     console.log("🔌 Connecting to MongoDB...");
     await connectDB();
     console.log("✅ MongoDB connected successfully!");
 
-    // Seed admin
     console.log("👤 Checking admin user...");
     await ensureAdmin();
 
-    // Start expiration monitoring
     console.log("📊 Initializing expiration monitoring...");
     initializeExpirationMonitoring();
 
@@ -188,12 +181,10 @@ const initializeApp = async () => {
   }
 };
 
-// Initialize on module load
 initializeApp().catch((err) => {
   console.error("❌ Initialization error:", err);
 });
 
-// For local development
 if (process.env.NODE_ENV !== "production") {
   const PORT = process.env.PORT || 5000;
   app.listen(PORT, () => {
@@ -201,5 +192,4 @@ if (process.env.NODE_ENV !== "production") {
   });
 }
 
-// Export for Vercel
 export default app;
