@@ -13,7 +13,7 @@ const SpendingChartPage = () => {
       year: 2025,
       month: 3,
       monthName: "March",
-      totalSpent: 1250,
+      totalSpent: 1500,
       orderCount: 8,
       period: "2025-03",
     },
