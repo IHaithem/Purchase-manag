@@ -4,11 +4,7 @@ import { deleteImage } from "../utils/Delete";
 import crypto from "crypto";
 import { uploadBufferToBlob } from "../utils/blob";
 
-/**
- * Create Product (multipart/form-data)
- * Required: name, unit, categoryId, currentStock, minQty
- * Optional: description, recommendedQty, barcode, image
- */
+// CREATE
 export const createProduct = async (req: Request, res: Response): Promise<void> => {
   try {
     const {
@@ -26,7 +22,6 @@ export const createProduct = async (req: Request, res: Response): Promise<void> 
       res.status(400).json({ message: "Missing required fields" });
       return;
     }
-
     if ((req as any).fileValidationError) {
       res.status(400).json({ message: (req as any).fileValidationError });
       return;
@@ -53,19 +48,14 @@ export const createProduct = async (req: Request, res: Response): Promise<void> 
       imageUrl,
     });
 
-    res.status(201).json({
-      message: "Product created successfully",
-      product: newProduct,
-    });
+    res.status(201).json({ message: "Product created successfully", product: newProduct });
   } catch (error: any) {
     console.error("Product create error:", error);
     res.status(500).json({ message: "Internal server error", err: error.message });
   }
 };
 
-/**
- * Update Product
- */
+// UPDATE
 export const updateProduct = async (req: Request, res: Response): Promise<void> => {
   try {
     const {
@@ -100,7 +90,6 @@ export const updateProduct = async (req: Request, res: Response): Promise<void> 
     if (recommendedQty !== undefined) product.recommendedQty = Number(recommendedQty);
 
     if (req.file) {
-      // delete legacy local image only
       if (product.imageUrl && product.imageUrl.startsWith("/uploads/")) {
         try {
           deleteImage(product.imageUrl);
@@ -116,20 +105,14 @@ export const updateProduct = async (req: Request, res: Response): Promise<void> 
     }
 
     await product.save();
-
-    res.status(200).json({
-      message: "Product updated successfully",
-      product,
-    });
+    res.status(200).json({ message: "Product updated successfully", product });
   } catch (error: any) {
     console.error("Product update error:", error);
     res.status(500).json({ message: "Internal server error", err: error.message });
   }
 };
 
-/**
- * Get Products list with pagination/filter
- */
+// GET ALL
 export const getAllProducts = async (req: Request, res: Response): Promise<void> => {
   try {
     const { name, categoryId, sortBy, order, page = 1, limit = 10 } = req.query;
@@ -140,7 +123,6 @@ export const getAllProducts = async (req: Request, res: Response): Promise<void>
     }
 
     const query: any = {};
-
     if (name) {
       query.$or = [
         { name: { $regex: name, $options: "i" } },
@@ -173,9 +155,7 @@ export const getAllProducts = async (req: Request, res: Response): Promise<void>
   }
 };
 
-/**
- * Get single product
- */
+// GET SINGLE
 export const getProduct = async (req: Request, res: Response): Promise<void> => {
   try {
     const product = await Product.findById(req.params.productId).populate("categoryId");
@@ -190,6 +170,7 @@ export const getProduct = async (req: Request, res: Response): Promise<void> => 
   }
 };
 
+// DELETE
 export const deleteProduct = async (req: Request, res: Response): Promise<void> => {
   try {
     const product = await Product.findByIdAndDelete(req.params.productId);
@@ -207,6 +188,47 @@ export const deleteProduct = async (req: Request, res: Response): Promise<void> 
     res.status(200).json({ message: "Product deleted successfully" });
   } catch (error: any) {
     console.error("Delete product error:", error);
+    res.status(500).json({ message: "Internal server error", err: error.message });
+  }
+};
+
+// LOW STOCK
+export const getLowStockProducts = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const products = await Product.find({}); // could filter later
+    const critical = products.filter(p => p.currentStock <= 0);
+    const high = products.filter(p => p.currentStock > 0 && p.currentStock < p.minQty / 2);
+    const medium = products.filter(
+      p => p.currentStock >= p.minQty / 2 && p.currentStock < p.minQty
+    );
+
+    res.status(200).json({
+      summary: {
+        critical: critical.length,
+        high: high.length,
+        medium: medium.length,
+        total: critical.length + high.length + medium.length,
+      },
+      critical,
+      high,
+      medium,
+    });
+  } catch (error: any) {
+    console.error("Low stock error:", error);
+    res.status(500).json({ message: "Internal server error", err: error.message });
+  }
+};
+
+// OVER STOCK
+export const getOverStockProducts = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const products = await Product.find({});
+    const over = products.filter(
+      p => p.recommendedQty > 0 && p.currentStock > p.recommendedQty
+    );
+    res.status(200).json({ count: over.length, products: over });
+  } catch (error: any) {
+    console.error("Over stock error:", error);
     res.status(500).json({ message: "Internal server error", err: error.message });
   }
 };

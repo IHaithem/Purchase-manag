@@ -12,10 +12,15 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { AlertTriangle, Package, MoreHorizontal, Edit, Trash2 } from "lucide-react";
-import toast from "react-hot-toast";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { AlertTriangle, MoreHorizontal, Edit, Trash2, Package } from "lucide-react";
 import { resolveImage } from "@/lib/resolveImage";
+import toast from "react-hot-toast";
 
 interface Product {
   _id: string;
@@ -26,12 +31,10 @@ interface Product {
   currentStock: number;
   minQty: number;
   recommendedQty: number;
-  categoryId?: {
-    _id: string;
-    name: string;
-    image?: string;
-  };
+  categoryId?: { _id: string; name: string; image?: string };
 }
+
+type BadgeVariant = "default" | "destructive" | "outline" | "secondary";
 
 export function ProductsTable({
   products,
@@ -42,12 +45,29 @@ export function ProductsTable({
   onEdit: (p: Product) => void;
   onDelete: (id: string) => Promise<void>;
 }) {
-  const getStockStatus = (current: number, min: number) => {
+  // Return an object with valid variant + color class + label
+  const getStockStatus = (current: number, min: number): {
+    variant: BadgeVariant;
+    color: string;
+    label: string;
+  } => {
     if (current <= 0)
-      return { label: "out", variant: "destructive", color: "bg-destructive text-destructive-foreground" };
+      return {
+        variant: "destructive",
+        color: "",
+        label: "out",
+      };
     if (current <= min)
-      return { label: "low", variant: "secondary", color: "bg-amber-500/20 text-amber-700" };
-    return { label: "ok", variant: "outline", color: "" };
+      return {
+        variant: "secondary",
+        color: "bg-amber-500/20 text-amber-700",
+        label: "low",
+      };
+    return {
+      variant: "outline",
+      color: "",
+      label: "ok",
+    };
   };
 
   const handleDelete = async (id: string) => {
@@ -81,16 +101,19 @@ export function ProductsTable({
           <Table>
             <TableHeader className="bg-muted/50">
               <TableRow>
-                <TableHead className="rounded-tl-lg">Product</TableHead>
+                <TableHead>Product</TableHead>
                 <TableHead>Category</TableHead>
                 <TableHead>Stock</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead className="rounded-tr-lg text-right">Actions</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {products.map((product) => {
-                const stockStatus = getStockStatus(product.currentStock, product.minQty);
+                const stockStatus = getStockStatus(
+                  product.currentStock,
+                  product.minQty
+                );
                 return (
                   <TableRow key={product._id}>
                     <TableCell className="font-medium">
