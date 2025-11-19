@@ -18,11 +18,17 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { AlertTriangle, MoreHorizontal, Edit, Trash2, Package } from "lucide-react";
+import {
+  AlertTriangle,
+  MoreHorizontal,
+  Edit,
+  Trash2,
+  Package,
+} from "lucide-react";
 import { resolveImage } from "@/lib/resolveImage";
 import toast from "react-hot-toast";
 
-interface Product {
+export interface Product {
   _id: string;
   name: string;
   barcode?: string;
@@ -36,38 +42,30 @@ interface Product {
 
 type BadgeVariant = "default" | "destructive" | "outline" | "secondary";
 
+interface ProductsTableProps {
+  products: Product[];
+  onEdit: (p: Product) => void;
+  onDelete: (id: string) => Promise<void>;
+}
+
 export function ProductsTable({
   products,
   onEdit,
   onDelete,
-}: {
-  products: Product[];
-  onEdit: (p: Product) => void;
-  onDelete: (id: string) => Promise<void>;
-}) {
-  // Return an object with valid variant + color class + label
-  const getStockStatus = (current: number, min: number): {
-    variant: BadgeVariant;
-    color: string;
-    label: string;
-  } => {
+}: ProductsTableProps) {
+  const getStockStatus = (
+    current: number,
+    min: number
+  ): { variant: BadgeVariant; color: string; label: string } => {
     if (current <= 0)
-      return {
-        variant: "destructive",
-        color: "",
-        label: "out",
-      };
+      return { variant: "destructive", color: "", label: "out" };
     if (current <= min)
       return {
         variant: "secondary",
         color: "bg-amber-500/20 text-amber-700",
         label: "low",
       };
-    return {
-      variant: "outline",
-      color: "",
-      label: "ok",
-    };
+    return { variant: "outline", color: "", label: "ok" };
   };
 
   const handleDelete = async (id: string) => {
@@ -150,7 +148,9 @@ export function ProductsTable({
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
-                        <span className="font-medium">{product.currentStock}</span>
+                        <span className="font-medium">
+                          {product.currentStock}
+                        </span>
                         {product.currentStock <= product.minQty &&
                           product.currentStock > 0 && (
                             <AlertTriangle className="h-4 w-4 text-amber-600" />
@@ -167,17 +167,24 @@ export function ProductsTable({
                     </TableCell>
                     <TableCell className="text-right">
                       <DropdownMenu>
-                        <DropdownMenuTrigger>
-                          <MoreHorizontal className="h-4 w-4" />
+                        <DropdownMenuTrigger asChild>
+                          <button
+                            type="button"
+                            className="inline-flex h-8 w-8 items-center justify-center rounded-md hover:bg-muted"
+                          >
+                            <MoreHorizontal className="h-4 w-4" />
+                          </button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => onEdit(product)}>
+                          <DropdownMenuItem
+                            onClick={() => onEdit(product)}
+                          >
                             <Edit className="h-4 w-4 mr-2" />
                             Edit
                           </DropdownMenuItem>
                           <DropdownMenuItem
                             onClick={() => handleDelete(product._id)}
-                            className="text-destructive"
+                            className="text-destructive focus:text-destructive"
                           >
                             <Trash2 className="h-4 w-4 mr-2" />
                             Delete
