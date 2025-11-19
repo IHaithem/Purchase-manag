@@ -37,6 +37,16 @@ function attachMongooseEventListeners() {
 
   conn.on("connected", () => {
     console.log("🟢 [mongo] connected. readyState:", conn.readyState);
+    try {
+      const client = conn.getClient();
+      // `options` can include maxPoolSize (Node driver)
+      // Optional diagnostic only
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const maxPoolSize = (client && (client as any).options?.maxPoolSize) || "unknown";
+      console.log("🧪 [mongo] driver maxPoolSize:", maxPoolSize);
+    } catch {
+      /* ignore */
+    }
   });
   conn.on("error", (err) => {
     console.error("🔴 [mongo] error:", err.name, err.message);
@@ -52,15 +62,13 @@ function attachMongooseEventListeners() {
 }
 
 // ---- Single attempt connect ----
-async function connectOnce(finalUri: string) {
+async function connectOnce(finalUri: string, maxPoolSize: number, minPoolSize: number) {
   const serverSelectionTimeoutMS =
     Number(process.env.MONGODB_SERVER_SELECTION_TIMEOUT_MS) || 60000;
   const connectTimeoutMS =
     Number(process.env.MONGODB_CONNECT_TIMEOUT_MS) || 60000;
   const socketTimeoutMS =
     Number(process.env.MONGODB_SOCKET_TIMEOUT_MS) || 60000;
-  const maxPoolSize = Number(process.env.MONGODB_MAX_POOL_SIZE) || 5;
-  const minPoolSize = Number(process.env.MONGODB_MIN_POOL_SIZE) || 0;
 
   return mongoose.connect(finalUri, {
     serverSelectionTimeoutMS,
@@ -69,7 +77,6 @@ async function connectOnce(finalUri: string) {
     family: 4,
     maxPoolSize,
     minPoolSize,
-    // appName helps Atlas metrics
     appName: "purchase-manag",
   });
 }
@@ -77,7 +84,7 @@ async function connectOnce(finalUri: string) {
 /**
  * Retry wrapper with exponential backoff.
  */
-async function connectWithRetry(finalUri: string) {
+async function connectWithRetry(finalUri: string, maxPoolSize: number, minPoolSize: number) {
   const attempts = Number(process.env.MONGODB_CONNECT_ATTEMPTS) || 5;
   const baseDelayMs = Number(process.env.MONGODB_CONNECT_BASE_DELAY_MS) || 500;
   let lastErr: any;
@@ -85,15 +92,10 @@ async function connectWithRetry(finalUri: string) {
   for (let i = 1; i <= attempts; i++) {
     try {
       console.log(
-        `🔌 [mongo] attempt ${i}/${attempts} uri=${redact(finalUri)} poolSize=${
-          mongoose.connection?.poolSize || "n/a"
-        }`
+        `🔌 [mongo] attempt ${i}/${attempts} uri=${redact(finalUri)} configuredMaxPoolSize=${maxPoolSize}`
       );
-      const conn = await connectOnce(finalUri);
-      console.log(
-        "✅ [mongo] connected; readyState:",
-        mongoose.connection.readyState
-      );
+      const conn = await connectOnce(finalUri, maxPoolSize, minPoolSize);
+      console.log("✅ [mongo] connected; readyState:", mongoose.connection.readyState);
       return conn;
     } catch (err: any) {
       lastErr = err;
@@ -116,11 +118,9 @@ export default async function connectDB() {
 
   // If already connected or connecting, reuse.
   if (mongoose.connection.readyState === 1) {
-    // connected
     return mongoose.connection;
   } else if (mongoose.connection.readyState === 2) {
-    // connecting (return promise once resolved)
-    console.log("🔄 [mongo] already connecting; reusing promise");
+    console.log("🔄 [mongo] already connecting; reusing existing state");
     return mongoose.connection;
   }
 
@@ -131,9 +131,12 @@ export default async function connectDB() {
 
   const rawUri = (process.env.MONGODB_URI || process.env.MONGO_URI || "").trim();
   const dbName = (process.env.MONGODB_DB || "NEXO").trim();
+  const maxPoolSize = Number(process.env.MONGODB_MAX_POOL_SIZE) || 5;
+  const minPoolSize = Number(process.env.MONGODB_MIN_POOL_SIZE) || 0;
 
   console.log("🔍 [mongo] MONGODB_URI present:", !!rawUri);
   console.log("🔍 [mongo] DB name selected:", dbName);
+  console.log("🔍 [mongo] pool config:", { maxPoolSize, minPoolSize });
 
   if (!rawUri) {
     throw new Error("MONGODB_URI (or MONGO_URI) missing");
@@ -142,7 +145,7 @@ export default async function connectDB() {
   const finalUri = ensureDbInUri(rawUri, dbName);
   console.log("🔐 [mongo] final URI:", redact(finalUri));
 
-  const promise = connectWithRetry(finalUri)
+  const promise = connectWithRetry(finalUri, maxPoolSize, minPoolSize)
     .then((conn) => {
       console.log("🗄️ [mongo] using DB:", dbName);
       return conn;

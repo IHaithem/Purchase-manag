@@ -18,7 +18,6 @@ import taskRouter from "./routes/task.router";
 import supplierRouter from "./routes/supplier.router";
 import notificationRouter from "./routes/notification.router";
 
-// Only load .env in development
 if (process.env.NODE_ENV !== "production") {
   dotenv.config();
 }
@@ -44,10 +43,10 @@ function normalizeOrigin(o?: string) {
 }
 
 const exactAllowedOrigins = [
-  normalizeOrigin(process.env.CLIENT_ORIGIN),        // e.g. http://localhost:3000
-  normalizeOrigin(process.env.ADMIN_ORIGIN),         // e.g. http://localhost:3000
-  normalizeOrigin(process.env.PROD_CLIENT_ORIGIN),   // e.g. https://purchase-manag-front.vercel.app
-  normalizeOrigin(process.env.PROD_ADMIN_ORIGIN),    // e.g. https://purchase-manag-front.vercel.app
+  normalizeOrigin(process.env.CLIENT_ORIGIN),
+  normalizeOrigin(process.env.ADMIN_ORIGIN),
+  normalizeOrigin(process.env.PROD_CLIENT_ORIGIN),
+  normalizeOrigin(process.env.PROD_ADMIN_ORIGIN),
 ].filter(Boolean) as string[];
 
 const exactAllowedHostnames = exactAllowedOrigins
@@ -63,26 +62,54 @@ const exactAllowedHostnames = exactAllowedOrigins
 const previewFrontendHostnameRegex =
   /^purchase-manag-front-[a-z0-9-]+-haithem-fellahs-projects\.vercel\.app$/;
 
+// More permissive preview fallback (disabled by default)
+// You can set ENABLE_PERMISSIVE_PREVIEW=1 to activate it.
+const permissivePreviewRegex =
+  /purchase-manag-front-[a-z0-9-]+-haithem-fellahs-projects\.vercel\.app$/;
+
+// Diagnostic helper
+function debugCors(origin: string, hostname: string, isExactAllowed: boolean, isPreviewAllowed: boolean, isPermissive: boolean) {
+  console.log("CORS check:", {
+    origin,
+    hostname,
+    isExactAllowed,
+    isPreviewAllowed,
+    isPermissive,
+    exactAllowedHostnames,
+    regex: previewFrontendHostnameRegex.source,
+    permissiveRegex: permissivePreviewRegex.source,
+  });
+}
+
 app.use(
   cors({
     origin(origin, callback) {
-      if (!origin) return callback(null, true); // same-origin/non-browser
+      if (!origin) {
+        console.log("CORS: no origin header -> allow");
+        return callback(null, true);
+      }
+      let hostname: string;
       try {
-        const { hostname } = new URL(origin);
-
-        const isExactAllowed = exactAllowedHostnames.includes(hostname);
-        const isPreviewAllowed = previewFrontendHostnameRegex.test(hostname);
-
-        if (isExactAllowed || isPreviewAllowed) {
-          return callback(null, true);
-        }
-
-        console.warn("CORS blocked origin:", origin);
-        return callback(new Error("Not allowed by CORS"));
-      } catch {
-        console.warn("CORS invalid origin:", origin);
+        hostname = new URL(origin).hostname;
+      } catch (e) {
+        console.warn("CORS invalid origin header:", origin, (e as any).message);
         return callback(new Error("Invalid origin"));
       }
+
+      const isExactAllowed = exactAllowedHostnames.includes(hostname);
+      const isPreviewAllowed = previewFrontendHostnameRegex.test(hostname);
+      const isPermissive =
+        process.env.ENABLE_PERMISSIVE_PREVIEW === "1" &&
+        permissivePreviewRegex.test(hostname);
+
+      debugCors(origin, hostname, isExactAllowed, isPreviewAllowed, isPermissive);
+
+      if (isExactAllowed || isPreviewAllowed || isPermissive) {
+        return callback(null, true);
+      }
+
+      console.warn("CORS blocked origin:", origin);
+      return callback(new Error("Not allowed by CORS"));
     },
     credentials: true,
     methods: ["GET", "HEAD", "PUT", "PATCH", "POST", "DELETE", "OPTIONS"],
@@ -96,8 +123,46 @@ app.get("/api/health", (_req: Request, res: Response) => {
 });
 
 /**
+ * CORS debug endpoint
+ * Returns arrays & test results so you can inspect what backend thinks is allowed.
+ * Optional query param ?testOrigin=https://some-origin
+ */
+app.get("/api/debug-cors", (req: Request, res: Response) => {
+  const testOrigin = (req.query.testOrigin as string) || "";
+  let testHostname = "";
+  let parseError = "";
+  if (testOrigin) {
+    try {
+      testHostname = new URL(testOrigin).hostname;
+    } catch (e: any) {
+      parseError = e.message;
+    }
+  }
+
+  const result =
+    testHostname &&
+    parseError === "" ? {
+      testOrigin,
+      testHostname,
+      isExactAllowed: exactAllowedHostnames.includes(testHostname),
+      isPreviewAllowed: previewFrontendHostnameRegex.test(testHostname),
+      isPermissive: permissivePreviewRegex.test(testHostname),
+      enabledPermissive: process.env.ENABLE_PERMISSIVE_PREVIEW === "1",
+    } : null;
+
+  res.json({
+    exactAllowedOrigins,
+    exactAllowedHostnames,
+    previewRegex: previewFrontendHostnameRegex.source,
+    permissiveRegex: permissivePreviewRegex.source,
+    ENABLE_PERMISSIVE_PREVIEW: process.env.ENABLE_PERMISSIVE_PREVIEW || "",
+    test: result,
+    parseError,
+  });
+});
+
+/**
  * Improved database debug endpoint
- * Shows raw URI (redacted), final URI path decision, chosen DB name, Mongoose state.
  */
 app.get("/api/debug-db", (_req: Request, res: Response) => {
   try {
@@ -105,11 +170,9 @@ app.get("/api/debug-db", (_req: Request, res: Response) => {
     const dbEnv = (process.env.MONGODB_DB || "").trim();
     const finalUri = ensureDbInUri(rawUri, dbEnv || undefined);
 
-    // Detect if the raw URI already had a path component before adding dbEnv
     const rawHasPath = /^mongodb\+srv:\/\/[^/]+\/[^?]+/.test(rawUri);
     const finalHasPath = /^mongodb\+srv:\/\/[^/]+\/[^?]+/.test(finalUri);
 
-    // Mongoose readyState -> human
     const rs = require("mongoose").connection.readyState;
     const rsText =
       rs === 0
@@ -122,9 +185,8 @@ app.get("/api/debug-db", (_req: Request, res: Response) => {
         ? "disconnecting"
         : "unknown";
 
-    // Redact credentials in both URIs
     const redact = (u: string) => u.replace(/\/\/.*?:.*?@/, "//***:***@");
-
+    res.set("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
     res.json({
       hasMongoDBUri: !!process.env.MONGODB_URI,
       rawUriLength: rawUri.length,
