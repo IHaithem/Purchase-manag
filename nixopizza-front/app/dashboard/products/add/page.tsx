@@ -25,17 +25,27 @@ import {
 } from "@/components/ui/card";
 import { ArrowLeft, Save, X, Upload, Package } from "lucide-react";
 import toast from "react-hot-toast";
-import { ICategory } from "../../categories/page";
 import { createProduct } from "@/lib/apis/products";
 import { CategorySelect } from "@/components/ui/category-select";
+import { getCategories } from "@/lib/apis/categories";
+
+// If you exported the Category interface from CategorySelect you can import it:
+// import type { Category as CategoryOption } from "@/components/ui/category-select";
+
+export interface ICategory {
+  _id: string;
+  name: string;
+  description?: string;
+  image: string;
+}
 
 export default function AddProductPage() {
   const router = useRouter();
   const [image, setImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
-  const [selectedCategory, setSelectedCategory] = useState<ICategory | null>(
-    null
-  );
+  const [selectedCategory, setSelectedCategory] = useState<ICategory | null>(null);
+  const [categories, setCategories] = useState<ICategory[]>([]);
+  const [categorySearch, setCategorySearch] = useState("");
 
   const [formData, setFormData] = useState({
     name: "",
@@ -47,6 +57,20 @@ export default function AddProductPage() {
     description: "",
   });
 
+  useEffect(() => {
+    const fetch = async () => {
+      const { categories: data, success, message } = await getCategories(
+        categorySearch ? { name: categorySearch } : undefined
+      );
+      if (success) {
+        setCategories(data || []);
+      } else {
+        toast.error(message);
+      }
+    };
+    fetch();
+  }, [categorySearch]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -54,12 +78,10 @@ export default function AddProductPage() {
       toast.error("Product image is required");
       return;
     }
-
     if (!selectedCategory) {
       toast.error("Please select a category");
       return;
     }
-
     if (!formData.unit) {
       toast.error("Please select a unit");
       return;
@@ -73,7 +95,6 @@ export default function AddProductPage() {
     data.append("image", image);
 
     const { success, message } = await createProduct(data);
-
     if (success) {
       toast.success("Product Created Successfully");
       router.push("/dashboard/products");
@@ -92,12 +113,10 @@ export default function AddProductPage() {
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      // Validate file type
       if (!file.type.match("image.*")) {
         toast.error("Please select an image file");
         return;
       }
-
       setImage(file);
       setImagePreview(URL.createObjectURL(file));
     }
@@ -153,7 +172,6 @@ export default function AddProductPage() {
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="space-y-8">
-          {/* Basic Information */}
           <Card className="border-0 shadow-lg rounded-xl">
             <CardHeader className="pb-4">
               <div className="flex items-center gap-3">
@@ -187,14 +205,12 @@ export default function AddProductPage() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="barcode" className="text-sm font-medium">
-                    Barcode 
+                    Barcode
                   </Label>
                   <Input
                     id="barcode"
                     value={formData.barcode}
-                    onChange={(e) =>
-                      handleInputChange("barcode", e.target.value)
-                    }
+                    onChange={(e) => handleInputChange("barcode", e.target.value)}
                     placeholder="Enter barcode"
                     className="py-5 border-2 border-input focus-visible:ring-2 focus-visible:ring-primary/30 rounded-lg"
                   />
@@ -207,10 +223,13 @@ export default function AddProductPage() {
                     Category *
                   </Label>
                   <CategorySelect
+                    categories={categories}
                     selectedCategory={selectedCategory}
-                    onCategoryChange={setSelectedCategory}
+                    // Wrap the setter so the type matches (c: Category | null) => void
+                    onSelect={(c) => setSelectedCategory(c)}
                     placeholder="Select a category"
                     className="border-2 border-input focus:ring-2 focus:ring-primary/30 rounded-lg"
+                    isLoading={false}
                   />
                 </div>
                 <div className="space-y-2">
@@ -231,8 +250,7 @@ export default function AddProductPage() {
                       <SelectItem value="piece">Piece</SelectItem>
                       <SelectItem value="meter">Meter</SelectItem>
                       <SelectItem value="pack">Pack</SelectItem>
-                      <SelectItem value="bottle">bottle</SelectItem>
-
+                      <SelectItem value="bottle">Bottle</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -254,7 +272,6 @@ export default function AddProductPage() {
                 />
               </div>
 
-              {/* Modern Image Upload */}
               <div className="space-y-2">
                 <Label htmlFor="image" className="text-sm font-medium">
                   Product Image *
@@ -305,7 +322,6 @@ export default function AddProductPage() {
             </CardContent>
           </Card>
 
-          {/* Inventory Management */}
           <Card className="border-0 shadow-lg rounded-xl">
             <CardHeader className="pb-4">
               <div className="flex items-center gap-3">
@@ -353,10 +369,7 @@ export default function AddProductPage() {
                     type="number"
                     value={formData.minQty}
                     onChange={(e) =>
-                      handleInputChange(
-                        "minQty",
-                        Number.parseInt(e.target.value) || 0
-                      )
+                      handleInputChange("minQty", Number.parseInt(e.target.value) || 0)
                     }
                     placeholder="0"
                     min="0"
@@ -365,7 +378,10 @@ export default function AddProductPage() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="recommendedQty" className="text-sm font-medium">
+                  <Label
+                    htmlFor="recommendedQty"
+                    className="text-sm font-medium"
+                  >
                     Recommended Quantity
                   </Label>
                   <Input
