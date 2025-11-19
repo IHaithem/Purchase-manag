@@ -6,7 +6,7 @@ export interface ICategory extends Document {
   description: string;
   image: string;
 }
-//  
+
 const categorySchema = new Schema<ICategory>(
   {
     name: { type: String, required: true },
