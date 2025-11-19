@@ -43,11 +43,22 @@ function normalizeOrigin(o?: string) {
 }
 
 const exactAllowedOrigins = [
+  // production vars
+  normalizeOrigin(process.env.PROD_CLIENT_ORIGIN),
+  normalizeOrigin(process.env.PROD_ADMIN_ORIGIN),
+
+  // new per-branch explicit vars (you will set these as Preview overrides in Vercel)
+  normalizeOrigin(process.env.STAG_CLIENT_ORIGIN),
+  normalizeOrigin(process.env.STAG_ADMIN_ORIGIN),
+  normalizeOrigin(process.env.DEV_CLIENT_ORIGIN),
+  normalizeOrigin(process.env.DEV_ADMIN_ORIGIN),
+
+  // legacy/backwards compatibility
   normalizeOrigin(process.env.CLIENT_ORIGIN),
   normalizeOrigin(process.env.ADMIN_ORIGIN),
   normalizeOrigin(process.env.PROD_CLIENT_ORIGIN),
   normalizeOrigin(process.env.PROD_ADMIN_ORIGIN),
-].filter(Boolean) as string[];
+].filter(Boolean) as string[]; // keep only non-empty
 
 const exactAllowedHostnames = exactAllowedOrigins
   .map((o) => {
