@@ -1,3 +1,5 @@
+"use client";
+
 import React, { useEffect, useRef, useState } from "react";
 import {
   Dialog,
@@ -11,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import toast from "react-hot-toast";
 import { updateCategory } from "@/lib/apis/categories";
+import { Upload } from "lucide-react";
 
 interface CategoryEditDialogProps {
   category: any;
@@ -104,52 +107,58 @@ export function CategoryEditDialog({
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-6">
+          {/* Image Upload Section (old UI: button on the right with text underneath) */}
           <div className="space-y-2">
             <Label>Category Image</Label>
-            <div className="flex items-center gap-4">
+            <div className="flex items-start gap-6">
+              {/* Left: preview box */}
               {photoPreview || (category && category.image) ? (
                 <div className="relative w-24 h-24 rounded-lg overflow-hidden border border-gray-200">
                   <img
                     src={photoPreview ? photoPreview : resolveCategoryImage(category?.image)}
-                    alt="Category"
-                    className="object-cover w-full h-full"
+                    alt="Category preview"
+                    className="w-full h-full object-cover"
                   />
-                  <div className="absolute inset-x-2 bottom-2">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="w-full"
-                      onClick={triggerFileInput}
-                    >
-                      Change Image
-                    </Button>
-                  </div>
                 </div>
               ) : (
-                <Button type="button" variant="outline" onClick={triggerFileInput}>
-                  Choose Image
-                </Button>
+                <div className="flex items-center justify-center w-24 h-24 border-2 border-dashed border-gray-300 rounded-lg">
+                  <Upload className="h-8 w-8 text-gray-400" />
+                </div>
               )}
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                onChange={handlePhotoUpload}
-                className="hidden"
-              />
+
+              {/* Right: upload/change button + helper text (old UI) */}
+              <div className="flex flex-col gap-2">
+                <Label
+                  htmlFor="image-upload"
+                  className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-md cursor-pointer hover:opacity-90 transition-opacity"
+                >
+                  <Upload className="h-4 w-4" />
+                  {photoPreview || category?.image ? "Change Image" : "Upload Image"}
+                </Label>
+                <p className="text-xs text-muted-foreground">
+                  PNG, JPG up to 5MB
+                </p>
+                <input
+                  id="image-upload"
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={handlePhotoUpload}
+                  className="hidden"
+                />
+              </div>
             </div>
           </div>
 
-            <div className="space-y-2">
-              <Label>Name</Label>
-              <Input
-                value={formData.name}
-                onChange={(e) => handleInputChange("name", e.target.value)}
-                placeholder="Category name"
-                required
-              />
-            </div>
+          <div className="space-y-2">
+            <Label>Name</Label>
+            <Input
+              value={formData.name}
+              onChange={(e) => handleInputChange("name", e.target.value)}
+              placeholder="Category name"
+              required
+            />
+          </div>
 
           <div className="space-y-2">
             <Label>Description</Label>
