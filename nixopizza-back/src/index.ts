@@ -5,9 +5,8 @@ import cookieParser from "cookie-parser";
 import cors from "cors";
 import path from "path";
 import bcrypt from "bcryptjs";
-import connectDB from "./config/database";
+import connectDB, { ensureDbInUri } from "./config/database";
 
-// routers
 import authRouter from "./routes/auth.router";
 import productRouter from "./routes/product.router";
 import categoryRouter from "./routes/category.router";
@@ -96,20 +95,55 @@ app.get("/api/health", (_req: Request, res: Response) => {
   res.json({ ok: true });
 });
 
-app.get("/api/debug-db", async (_req: Request, res: Response) => {
+/**
+ * Improved database debug endpoint
+ * Shows raw URI (redacted), final URI path decision, chosen DB name, Mongoose state.
+ */
+app.get("/api/debug-db", (_req: Request, res: Response) => {
   try {
-    const uri = (process.env.MONGODB_URI || process.env.MONGO_URI || "").trim();
+    const rawUri = (process.env.MONGODB_URI || process.env.MONGO_URI || "").trim();
+    const dbEnv = (process.env.MONGODB_DB || "").trim();
+    const finalUri = ensureDbInUri(rawUri, dbEnv || undefined);
+
+    // Detect if the raw URI already had a path component before adding dbEnv
+    const rawHasPath = /^mongodb\+srv:\/\/[^/]+\/[^?]+/.test(rawUri);
+    const finalHasPath = /^mongodb\+srv:\/\/[^/]+\/[^?]+/.test(finalUri);
+
+    // Mongoose readyState -> human
+    const rs = require("mongoose").connection.readyState;
+    const rsText =
+      rs === 0
+        ? "disconnected"
+        : rs === 1
+        ? "connected"
+        : rs === 2
+        ? "connecting"
+        : rs === 3
+        ? "disconnecting"
+        : "unknown";
+
+    // Redact credentials in both URIs
+    const redact = (u: string) => u.replace(/\/\/.*?:.*?@/, "//***:***@");
+
     res.json({
       hasMongoDBUri: !!process.env.MONGODB_URI,
-      hasMongoUri: !!process.env.MONGO_URI,
-      uriLength: uri.length,
-      uriStart: uri.substring(0, 30),
-      uriEnd: uri.substring(uri.length - 30),
-      hasDatabaseName: uri.includes("/NEXO"),
-      mongooseState: require("mongoose").connection.readyState,
+      rawUriLength: rawUri.length,
+      rawUriStart: rawUri.substring(0, 40),
+      rawUriEnd: rawUri.substring(rawUri.length - 40),
+      rawHasPath,
+      dbEnvValue: dbEnv,
+      finalUriStart: finalUri.substring(0, 40),
+      finalUriEnd: finalUri.substring(finalUri.length - 40),
+      finalHasPath,
+      hasDatabaseName: !!dbEnv,
+      mongooseState: rs,
+      mongooseStateText: rsText,
+      nodeEnv: process.env.NODE_ENV,
+      redactedRawUri: redact(rawUri),
+      redactedFinalUri: redact(finalUri),
     });
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
   }
 });
 
@@ -130,7 +164,7 @@ async function ensureAdmin() {
   const password = process.env.ADMIN_PASSWORD;
 
   if (!fullname || !email || !password) {
-    console.warn("⚠️ ADMIN_FULLNAME, ADMIN_EMAIL or ADMIN_PASSWORD not set in .env");
+    console.warn("⚠️ ADMIN_* vars not set — skipping admin seed");
     return;
   }
 
@@ -161,13 +195,12 @@ const initializeApp = async () => {
   try {
     console.log("🔍 Initializing app...");
     console.log("MONGODB_URI exists:", !!process.env.MONGODB_URI);
-    console.log("MONGO_URI exists:", !!process.env.MONGO_URI);
+    console.log("MONGODB_DB value:", process.env.MONGODB_DB);
 
     console.log("🔌 Connecting to MongoDB...");
     await connectDB();
-    console.log("✅ MongoDB connected successfully!");
 
-    console.log("👤 Checking admin user...");
+    console.log("👤 Ensuring admin user...");
     await ensureAdmin();
 
     console.log("📊 Initializing expiration monitoring...");
@@ -186,7 +219,6 @@ initializeApp().catch((err) => {
 });
 
 if (process.env.NODE_ENV !== "production") {
-  const PORT = process.env.PORT || 5000;
   app.listen(PORT, () => {
     console.log(`🚀 Server running on port ${PORT}`);
   });
