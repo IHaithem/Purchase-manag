@@ -159,29 +159,40 @@ app.use("/api/notifications", notificationRouter);
 const PORT = process.env.PORT || 5000;
 
 async function ensureAdmin() {
-  const fullname = process.env.ADMIN_FULLNAME;
-  const email = process.env.ADMIN_EMAIL;
-  const password = process.env.ADMIN_PASSWORD;
+  try {
+    const fullname = (process.env.ADMIN_FULLNAME || "").trim();
+    const email = (process.env.ADMIN_EMAIL || "").trim().toLowerCase();
+    const password = (process.env.ADMIN_PASSWORD || "").trim();
 
-  if (!fullname || !email || !password) {
-    console.warn("⚠️ ADMIN_* vars not set — skipping admin seed");
-    return;
+    console.log("🔐 ensureAdmin vars:", {
+      hasFullname: !!fullname,
+      hasEmail: !!email,
+      hasPassword: !!password,
+      emailValue: email,
+    });
+
+    if (!fullname || !email || !password) {
+      console.warn("⚠️ ADMIN_* missing; skipping seed");
+      return;
+    }
+
+    const existingAdmin = await User.findOne({ email, role: "admin" });
+    if (existingAdmin) {
+      console.log("✅ Admin already exists:", existingAdmin.email);
+      return;
+    }
+
+    const admin = await User.create({
+      fullname,
+      email,
+      password,
+      role: "admin",
+    });
+
+    console.log("🚀 Admin created:", admin.email);
+  } catch (e: any) {
+    console.error("❌ ensureAdmin error:", e.name, e.message);
   }
-
-  const existingAdmin = await User.findOne({ email, role: "admin" });
-  if (existingAdmin) {
-    console.log("✅ Admin already exists:", existingAdmin.email);
-    return;
-  }
-
-  const admin = await User.create({
-    fullname,
-    email,
-    password,
-    role: "admin",
-  });
-
-  console.log("🚀 Admin created:", admin.email);
 }
 
 let isInitialized = false;
