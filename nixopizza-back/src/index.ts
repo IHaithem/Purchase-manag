@@ -18,6 +18,9 @@ import taskRouter from "./routes/task.router";
 import supplierRouter from "./routes/supplier.router";
 import notificationRouter from "./routes/notification.router";
 
+import blobUploadRouter from "./routes/blobUpload.router";
+
+
 if (process.env.NODE_ENV !== "production") {
   dotenv.config();
 }
@@ -219,6 +222,9 @@ app.get("/api/debug-db", (_req: Request, res: Response) => {
     res.status(500).json({ error: err.message });
   }
 });
+
+app.use("/api/uploads", blobUploadRouter);
+
 
 app.use("/api/auth", authRouter);
 app.use("/api/admin", adminRouter);
