@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -19,10 +19,8 @@ interface CategoryEditDialogProps {
   setCategory: any;
 }
 
-const resolveCategoryImage = (image?: string) => {
-  if (!image) return "";
-  return image.startsWith("http") ? image : process.env.NEXT_PUBLIC_BASE_URL + image;
-};
+const resolveCategoryImage = (image?: string) =>
+  !image ? "" : image.startsWith("http") ? image : process.env.NEXT_PUBLIC_BASE_URL + image;
 
 export function CategoryEditDialog({
   category,
@@ -33,32 +31,23 @@ export function CategoryEditDialog({
   const [formData, setFormData] = useState({
     name: "",
     description: "",
-    type: "product",
-    status: "Active",
-    notes: "",
   });
-
-  const [isBudgetAllocated, setIsBudgetAllocated] = useState(false);
   const [photo, setPhoto] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     if (category) {
       setFormData({
         name: category.name,
         description: category.description,
-        type: category.type,
-        status: category.status,
-        notes: "",
       });
       setPhoto(null);
       setPhotoPreview(null);
     }
   }, [category]);
 
-  const handleBudgetToggle = (checked: boolean) => {
-    setIsBudgetAllocated(checked);
-  };
+  const triggerFileInput = () => fileInputRef.current?.click();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -67,15 +56,12 @@ export function CategoryEditDialog({
     const formDataToSend = new FormData();
     formDataToSend.append("name", formData.name);
     formDataToSend.append("description", formData.description);
-    if (photo) {
-      formDataToSend.append("image", photo);
-    }
+    if (photo) formDataToSend.append("image", photo);
 
-    const {
-      success,
-      message,
-      category: updatedCategory,
-    } = await updateCategory(category._id, formDataToSend);
+    const { success, message, category: updatedCategory } = await updateCategory(
+      category._id,
+      formDataToSend
+    );
 
     if (success) {
       toast.success("Category updated successfully");
@@ -88,28 +74,19 @@ export function CategoryEditDialog({
     }
   };
 
-  const handleInputChange = (field: string, value: string) => {
-    setFormData((prev) => ({
-      ...prev,
-      [field]: value,
-    }));
-  };
+  const handleInputChange = (field: string, value: string) =>
+    setFormData((prev) => ({ ...prev, [field]: value }));
 
   const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      if (!file.type.match("image.*")) {
+      if (!file.type.startsWith("image/")) {
         toast.error("Please select an image file");
         return;
       }
       setPhoto(file);
       setPhotoPreview(URL.createObjectURL(file));
     }
-  };
-
-  const removePhoto = () => {
-    setPhoto(null);
-    setPhotoPreview(null);
   };
 
   return (
@@ -121,50 +98,49 @@ export function CategoryEditDialog({
           </DialogTitle>
           <DialogDescription>
             {category
-              ? "Update category name, description, type, and image."
+              ? "Update category name, description, and image."
               : "Add a new product or expense category."}
           </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Image Upload */}
           <div className="space-y-2">
             <Label>Category Image</Label>
             <div className="flex items-center gap-4">
               {photoPreview || (category && category.image) ? (
                 <div className="relative w-24 h-24 rounded-lg overflow-hidden border border-gray-200">
                   <img
-                    src={
-                      photoPreview
-                        ? photoPreview
-                        : resolveCategoryImage(category?.image)
-                    }
-                    alt="Category preview"
+                    src={photoPreview ? photoPreview : resolveCategoryImage(category?.image)}
+                    alt="Category"
                     className="object-cover w-full h-full"
                   />
-                  <Button
-                    type="button"
-                    variant="destructive"
-                    size="sm"
-                    className="absolute top-1 right-1"
-                    onClick={removePhoto}
-                  >
-                    Remove
-                  </Button>
+                  <div className="absolute inset-x-2 bottom-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="w-full"
+                      onClick={triggerFileInput}
+                    >
+                      Change Image
+                    </Button>
+                  </div>
                 </div>
               ) : (
-                <div>
-                  <Input
-                    type="file"
-                    accept="image/*"
-                    onChange={handlePhotoUpload}
-                  />
-                </div>
+                <Button type="button" variant="outline" onClick={triggerFileInput}>
+                  Choose Image
+                </Button>
               )}
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handlePhotoUpload}
+                className="hidden"
+              />
             </div>
           </div>
 
-          {/* Name */}
             <div className="space-y-2">
               <Label>Name</Label>
               <Input
@@ -175,24 +151,17 @@ export function CategoryEditDialog({
               />
             </div>
 
-          {/* Description */}
           <div className="space-y-2">
             <Label>Description</Label>
             <Input
               value={formData.description}
-              onChange={(e) =>
-                handleInputChange("description", e.target.value)
-              }
+              onChange={(e) => handleInputChange("description", e.target.value)}
               placeholder="Description"
             />
           </div>
 
           <div className="flex justify-end gap-3">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => onOpenChange(false)}
-            >
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
             <Button type="submit">Save</Button>
