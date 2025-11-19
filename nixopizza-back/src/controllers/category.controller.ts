@@ -1,65 +1,84 @@
 import { Request, Response } from "express";
 import Category from "../models/category.model";
 import { deleteImage } from "../utils/Delete";
+import crypto from "crypto";
+import { uploadBufferToBlob } from "../utils/blob";
 
-export const getCategoriesByFilter = async (
-  req: Request,
-  res: Response
-): Promise<void> => {
+/**
+ * GET /api/categories
+ * Optional query: name (regex match)
+ */
+export const getCategoriesByFilter = async (req: Request, res: Response): Promise<void> => {
   try {
     const { name } = req.query;
 
     const query: any = {};
-    if (name) query.name = { $regex: name, $options: "i" }; // Fixed typo: $rgex -> $regex
+    if (name) query.name = { $regex: name, $options: "i" };
 
     const categories = await Category.find(query).sort({ createdAt: -1 });
-
     res.status(200).json({ categories });
   } catch (error: any) {
     console.error(error);
-    res
-      .status(500)
-      .json({ message: "Internal server error", err: error.message });
+    res.status(500).json({ message: "Internal server error", err: error.message });
   }
 };
 
-export const createCategory = async (
-  req: Request,
-  res: Response
-): Promise<void> => {
+/**
+ * POST /api/categories
+ * multipart/form-data fields:
+ * - name (string, required)
+ * - description (string, optional)
+ * - image (file, optional)
+ */
+export const createCategory = async (req: Request, res: Response): Promise<void> => {
   try {
     const { name, description } = req.body;
 
     if (!name) {
-      res.status(400).json({ message: "All fields must fill" });
+      res.status(400).json({ message: "Name is required" });
       return;
     }
-    const filename = req.file?.filename;
+
+    if ((req as any).fileValidationError) {
+      res.status(400).json({ message: (req as any).fileValidationError });
+      return;
+    }
+
+    let imageUrl = "";
+    if (req.file) {
+      const ext = (req.file.originalname.match(/\.[^/.]+$/) || [".bin"])[0];
+      const unique = crypto.randomBytes(8).toString("hex");
+      const key = `${Date.now()}-${unique}${ext}`;
+      const uploaded = await uploadBufferToBlob(key, req.file.buffer, req.file.mimetype);
+      imageUrl = uploaded.url; // store blob public URL directly
+    } else {
+      imageUrl = ""; // or a default placeholder URL
+    }
+
     const newCategory = await Category.create({
       name,
       description,
-      image: `/uploads/categories/${filename}`,
+      image: imageUrl,
     });
 
-    res.status(200).json({
-      message: "Category created Successfully",
+    res.status(201).json({
+      message: "Category created successfully",
       category: newCategory,
     });
   } catch (error: any) {
     console.error(error);
-    res
-      .status(500)
-      .json({ message: "Internal server error", err: error.message });
+    res.status(500).json({ message: "Internal server error", err: error.message });
   }
 };
 
-export const updateCategory = async (
-  req: Request,
-  res: Response
-): Promise<void> => {
+/**
+ * PUT /api/categories/:categoryId
+ * Allows updating name, description, and optionally replacing image.
+ */
+export const updateCategory = async (req: Request, res: Response): Promise<void> => {
   try {
     const { name, description } = req.body;
-    const categoryId = req.params.categoryId;
+    const { categoryId } = req.params;
 
     const category = await Category.findById(categoryId);
     if (!category) {
@@ -67,50 +86,71 @@ export const updateCategory = async (
       return;
     }
 
+    if ((req as any).fileValidationError) {
+      res.status(400).json({ message: (req as any).fileValidationError });
+      return;
+    }
+
     if (name) category.name = name;
     if (description) category.description = description;
 
-    const filename = req.file?.filename;
-    if (filename) {
-      deleteImage(category.image);
-      category.image = `/uploads/categories/${filename}`;
+    if (req.file) {
+      // Optionally delete local legacy file only if it's a legacy path
+      if (category.image && category.image.startsWith("/uploads/")) {
+        try {
+          deleteImage(category.image);
+        } catch (e) {
+          console.warn("Failed to delete legacy image:", e);
+        }
+      }
+
+      const ext = (req.file.originalname.match(/\.[^/.]+$/) || [".bin"])[0];
+      const unique = crypto.randomBytes(8).toString("hex");
+      const key = `${Date.now()}-${unique}${ext}`;
+      const uploaded = await uploadBufferToBlob(key, req.file.buffer, req.file.mimetype);
+      category.image = uploaded.url;
     }
 
     await category.save();
 
     res.status(200).json({
-      message: "Category updated Successfully",
+      message: "Category updated successfully",
       category,
     });
   } catch (error: any) {
-    res
-      .status(500)
-      .json({ message: "Internal server error", err: error.message });
+    console.error(error);
+    res.status(500).json({ message: "Internal server error", err: error.message });
   }
 };
 
-export const deleteCategory = async (
-  req: Request,
-  res: Response
-): Promise<void> => {
+/**
+ * DELETE /api/categories/:categoryId
+ */
+export const deleteCategory = async (req: Request, res: Response): Promise<void> => {
   try {
-    const categoryId = req.params.categoryId;
+    const { categoryId } = req.params;
 
     const category = await Category.findByIdAndDelete(categoryId);
     if (!category) {
       res.status(404).json({ message: "Category not found" });
       return;
-    } else {
-      deleteImage(category.image);
+    }
+
+    // Delete legacy disk file only (blob deletion not implemented yet)
+    if (category.image && category.image.startsWith("/uploads/")) {
+      try {
+        deleteImage(category.image);
+      } catch (e) {
+        console.warn("Failed to delete legacy image:", e);
+      }
     }
 
     res.status(200).json({
-      message: "Category deleted Successfully",
+      message: "Category deleted successfully",
       category,
     });
   } catch (error: any) {
-    res
-      .status(500)
-      .json({ message: "Internal server error", err: error.message });
+    console.error(error);
+    res.status(500).json({ message: "Internal server error", err: error.message });
   }
 };
