@@ -115,10 +115,10 @@ export function StuffEditDialog({
     if (formData.avatar) payload.append("image", formData.avatar);
 
     const data = await updateStuff(stuff._id, payload);
-    if (data.success && data.stuff) {
+    if (data.success && data.staff) {
       toast.success("Staff updated successfully!");
-      onUpdated(data.stuff);
-      setAvatarPreview(data.stuff.avatar || avatarPreview);
+      onUpdated(data.staff);
+      setAvatarPreview(data.staff.avatar || avatarPreview);
       onOpenChange(false);
     } else {
       toast.error(data.message || "Failed to update staff");
