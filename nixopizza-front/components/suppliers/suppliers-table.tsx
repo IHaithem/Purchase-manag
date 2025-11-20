@@ -1,6 +1,7 @@
 // components/suppliers/suppliers-table.tsx
 "use client";
 
+import { resolveImage } from "@/lib/resolveImage";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -143,7 +144,7 @@ export function SuppliersTable({
                         <div className="p-2 bg-muted rounded-lg">
                           <img
                             src={
-                              process.env.NEXT_PUBLIC_BASE_URL + supplier.image
+                              resolveImage(supplier.image)
                             }
                             alt={supplier.name}
                             className="w-12 h-12 rounded-full"
@@ -170,7 +171,7 @@ export function SuppliersTable({
                     <TableCell>
                       <div className="flex items-center gap-1 text-sm">
                         <Phone className="h-3 w-3" />
-                        {supplier.phone}
+                        {supplier.phone1}
                       </div>
                     </TableCell>
 

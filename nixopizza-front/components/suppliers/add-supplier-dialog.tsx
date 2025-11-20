@@ -1,4 +1,4 @@
-// components/ui/add-supplier-dialog.tsx
+// components/suppliers/add-supplier-dialog.tsx
 "use client";
 
 import * as React from "react";
@@ -30,6 +30,7 @@ import { create_supplier } from "@/lib/apis/suppliers";
 import toast from "react-hot-toast";
 import { CategorySelect } from "../ui/category-select";
 import { ICategory } from "@/app/dashboard/categories/page";
+import { resolveImage } from "@/lib/resolveImage";
 
 export function AddSupplierDialog({
   onAdding,
@@ -42,7 +43,6 @@ export function AddSupplierDialog({
   const [image, setImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
 
-  // Fetch categories on component mount
   React.useEffect(() => {
     const fetchCategories = async () => {
       try {
@@ -79,7 +79,6 @@ export function AddSupplierDialog({
     setIsSubmitting(true);
 
     try {
-      // Prepare data for API call
       const supplierData = new FormData();
       supplierData.append("name", formData.name);
       supplierData.append("contactPerson", formData.contactPerson);
@@ -92,12 +91,10 @@ export function AddSupplierDialog({
       supplierData.append("isActive", formData.isActive.toString());
       supplierData.append("notes", formData.notes);
 
-      // Add categories
       formData.categoryIds.forEach((id) => {
         supplierData.append("categoryIds", id);
       });
 
-      // Add image if provided
       if (image) {
         supplierData.append("image", image);
       }
@@ -106,7 +103,6 @@ export function AddSupplierDialog({
       onAdding(supplier);
       toast.success("Supplier Created Successfully");
 
-      // Reset form
       resetForm();
       setOpen(false);
     } catch (error) {
@@ -134,9 +130,7 @@ export function AddSupplierDialog({
   };
 
   const handleRemoveCategory = (index: number) => {
-    const updatedCategories = formData.categoryIds.filter(
-      (_, i) => i !== index
-    );
+    const updatedCategories = formData.categoryIds.filter((_, i) => i !== index);
     setFormData((prev) => ({
       ...prev,
       categoryIds: updatedCategories,
@@ -146,12 +140,10 @@ export function AddSupplierDialog({
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      // Validate file type
       if (!file.type.match("image.*")) {
         toast.error("Please select an image file");
         return;
       }
-
       setImage(file);
       setImagePreview(URL.createObjectURL(file));
     }
@@ -182,12 +174,9 @@ export function AddSupplierDialog({
 
   const handleDialogChange = (isOpen: boolean) => {
     setOpen(isOpen);
-    if (!isOpen) {
-      resetForm();
-    }
+    if (!isOpen) resetForm();
   };
 
-  // Filter out already selected categories
   const availableCategories = categories.filter(
     (cat) => !formData.categoryIds.includes(cat._id)
   );
@@ -206,8 +195,7 @@ export function AddSupplierDialog({
             Add New Supplier
           </DialogTitle>
           <DialogDescription>
-            Add a new supplier to your directory with contact information and
-            categories.
+            Add a new supplier to your directory with contact information and categories.
           </DialogDescription>
         </DialogHeader>
 
@@ -218,149 +206,101 @@ export function AddSupplierDialog({
           }}
           className="space-y-6"
         >
-          {/* Basic Information */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-2">
-              <Label htmlFor="name" className="text-sm font-medium">
-                Company Name *
-              </Label>
+              <Label>Company Name *</Label>
               <Input
-                id="name"
                 value={formData.name}
                 onChange={(e) => handleInputChange("name", e.target.value)}
-                placeholder="Enter company name"
                 required
-                className="py-5 border-2 border-input focus-visible:ring-2 focus-visible:ring-primary/30 rounded-lg"
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="contactPerson" className="text-sm font-medium">
-                Contact Person *
-              </Label>
+              <Label>Contact Person *</Label>
               <Input
-                id="contactPerson"
                 value={formData.contactPerson}
-                onChange={(e) =>
-                  handleInputChange("contactPerson", e.target.value)
-                }
-                placeholder="Enter contact person name"
+                onChange={(e) => handleInputChange("contactPerson", e.target.value)}
                 required
-                className="py-5 border-2 border-input focus-visible:ring-2 focus-visible:ring-primary/30 rounded-lg"
               />
             </div>
           </div>
 
-          {/* Contact Information */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-2">
-              <Label htmlFor="email" className="text-sm font-medium">
-                Email *
-              </Label>
+              <Label>Email *</Label>
               <Input
-                id="email"
                 type="email"
                 value={formData.email}
                 onChange={(e) => handleInputChange("email", e.target.value)}
-                placeholder="Enter email address"
                 required
-                className="py-5 border-2 border-input focus-visible:ring-2 focus-visible:ring-primary/30 rounded-lg"
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="phone1" className="text-sm font-medium">
-                Phone 1 *
-              </Label>
+              <Label>Phone 1 *</Label>
               <Input
-                id="phone1"
                 value={formData.phone1}
                 onChange={(e) => handleInputChange("phone1", e.target.value)}
-                placeholder="Enter primary phone number"
                 required
-                className="py-5 border-2 border-input focus-visible:ring-2 focus-visible:ring-primary/30 rounded-lg"
               />
             </div>
           </div>
 
-          {/* Additional Phone Numbers */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="space-y-2">
-              <Label htmlFor="phone2" className="text-sm font-medium">
-                Phone 2 (Optional)
-              </Label>
-              <Input
-                id="phone2"
-                value={formData.phone2}
-                onChange={(e) => handleInputChange("phone2", e.target.value)}
-                placeholder="Enter secondary phone number"
-                className="py-5 border-2 border-input focus-visible:ring-2 focus-visible:ring-primary/30 rounded-lg"
-              />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-2">
+                <Label>Phone 2 (Optional)</Label>
+                <Input
+                  value={formData.phone2}
+                  onChange={(e) => handleInputChange("phone2", e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Phone 3 (Optional)</Label>
+                <Input
+                  value={formData.phone3}
+                  onChange={(e) => handleInputChange("phone3", e.target.value)}
+                />
+              </div>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="phone3" className="text-sm font-medium">
-                Phone 3 (Optional)
-              </Label>
-              <Input
-                id="phone3"
-                value={formData.phone3}
-                onChange={(e) => handleInputChange("phone3", e.target.value)}
-                placeholder="Enter tertiary phone number"
-                className="py-5 border-2 border-input focus-visible:ring-2 focus-visible:ring-primary/30 rounded-lg"
-              />
-            </div>
-          </div>
 
-          {/* Address & City */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-2">
-              <Label htmlFor="address" className="text-sm font-medium">
-                Address *
-              </Label>
+              <Label>Address *</Label>
               <Input
-                id="address"
                 value={formData.address}
                 onChange={(e) => handleInputChange("address", e.target.value)}
-                placeholder="Enter full address"
                 required
-                className="py-5 border-2 border-input focus-visible:ring-2 focus-visible:ring-primary/30 rounded-lg"
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="city" className="text-sm font-medium">
-                City (Optional)
-              </Label>
+              <Label>City (Optional)</Label>
               <Input
-                id="city"
                 value={formData.city}
                 onChange={(e) => handleInputChange("city", e.target.value)}
-                placeholder="Enter city"
-                className="py-5 border-2 border-input focus-visible:ring-2 focus-visible:ring-primary/30 rounded-lg"
               />
             </div>
           </div>
 
-          {/* Image Upload */}
+          {/* Image */}
           <div className="space-y-2">
-            <Label htmlFor="image" className="text-sm font-medium">
-              Supplier Image
-            </Label>
+            <Label>Supplier Image</Label>
             <div className="flex items-center gap-4">
               {imagePreview ? (
-                <div className="relative w-24 h-24 rounded-xl overflow-hidden border-2 border-input shadow-sm">
+                <div className="relative w-24 h-24 rounded-xl overflow-hidden border">
                   <img
-                    src={imagePreview}
-                    alt="Supplier preview"
-                    className="w-full h-full object-cover"
+                    src={resolveImage(imagePreview)}
+                    alt="Preview"
+                    className="object-cover w-full h-full"
                   />
                   <button
                     type="button"
                     onClick={removeImage}
-                    className="absolute top-1 right-1 bg-destructive text-destructive-foreground rounded-full p-1 hover:opacity-80 shadow-sm"
+                    className="absolute top-1 right-1 bg-destructive text-destructive-foreground rounded-full p-1"
                   >
                     <X className="h-3 w-3" />
                   </button>
                 </div>
               ) : (
-                <div className="flex items-center justify-center w-24 h-24 border-2 border-dashed border-input rounded-xl bg-muted/20">
+                <div className="flex items-center justify-center w-24 h-24 border-2 border-dashed rounded-xl bg-muted/20">
                   <Upload className="h-8 w-8 text-muted-foreground" />
                 </div>
               )}
@@ -368,7 +308,7 @@ export function AddSupplierDialog({
               <div className="flex flex-col gap-2">
                 <Label
                   htmlFor="image-upload"
-                  className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-md cursor-pointer hover:opacity-90 transition-opacity"
+                  className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-md cursor-pointer hover:opacity-90"
                 >
                   <Upload className="h-4 w-4" />
                   {imagePreview ? "Change Image" : "Upload Image"}
@@ -389,32 +329,26 @@ export function AddSupplierDialog({
 
           {/* Categories */}
           <div className="space-y-2">
-            <Label htmlFor="category" className="text-sm font-medium">
-              Categories
-            </Label>
+            <Label>Categories</Label>
             <CategorySelect
               categories={availableCategories}
               selectedCategory={null}
-              onCategoryChange={handleAddCategory}
+              onSelect={(c) => handleAddCategory(c as unknown as ICategory | null)}
               placeholder="Select categories"
-              className="border-2 border-input focus:ring-2 focus:ring-primary/30 rounded-lg"
+              className="border rounded-lg"
+              isLoading={false}
             />
-
             {formData.categoryIds.length > 0 && (
               <div className="flex flex-wrap gap-2 mt-2">
                 {formData.categoryIds.map((categoryId, index) => {
                   const category = categories.find((c) => c._id === categoryId);
                   return (
-                    <Badge
-                      className="py-1 pl-2 pr-1 relative rounded-md"
-                      variant="outline"
-                      key={index}
-                    >
+                    <Badge key={categoryId} variant="outline" className="flex items-center gap-1">
                       {category?.name || categoryId}
                       <button
                         type="button"
-                        className="ml-1 hover:bg-muted rounded-sm p-0.5"
                         onClick={() => handleRemoveCategory(index)}
+                        className="hover:bg-muted rounded-sm p-0.5"
                       >
                         <X className="h-3 w-3" />
                       </button>
@@ -427,16 +361,14 @@ export function AddSupplierDialog({
 
           {/* Status */}
           <div className="space-y-2">
-            <Label htmlFor="status" className="text-sm font-medium">
-              Status
-            </Label>
+            <Label>Status</Label>
             <Select
               value={formData.isActive ? "Active" : "Inactive"}
-              onValueChange={(value) =>
-                handleInputChange("isActive", value === "Active")
+              onValueChange={(v) =>
+                handleInputChange("isActive", v === "Active")
               }
             >
-              <SelectTrigger className="py-5 border-2 border-input focus:ring-2 focus:ring-primary/30 rounded-lg">
+              <SelectTrigger>
                 <SelectValue placeholder="Select status" />
               </SelectTrigger>
               <SelectContent>
@@ -448,16 +380,12 @@ export function AddSupplierDialog({
 
           {/* Notes */}
           <div className="space-y-2">
-            <Label htmlFor="notes" className="text-sm font-medium">
-              Notes (Optional)
-            </Label>
+            <Label>Notes (Optional)</Label>
             <Textarea
-              id="notes"
               value={formData.notes}
               onChange={(e) => handleInputChange("notes", e.target.value)}
-              placeholder="Enter any additional notes"
               rows={3}
-              className="resize-y border-2 border-input focus-visible:ring-2 focus-visible:ring-primary/30 rounded-lg"
+              placeholder="Additional notes..."
             />
           </div>
 
@@ -467,15 +395,10 @@ export function AddSupplierDialog({
               variant="outline"
               onClick={() => setOpen(false)}
               disabled={isSubmitting}
-              className="rounded-full px-4"
             >
               Cancel
             </Button>
-            <Button
-              type="submit"
-              disabled={isSubmitting}
-              className="rounded-full px-6"
-            >
+            <Button type="submit" disabled={isSubmitting}>
               {isSubmitting ? "Adding..." : "Add Supplier"}
             </Button>
           </DialogFooter>

@@ -2,23 +2,51 @@ import { Request, Response } from "express";
 import Supplier from "../models/supplier.model";
 import { deleteImage } from "../utils/Delete";
 import mongoose from "mongoose";
+import crypto from "crypto";
+import { uploadBufferToBlob } from "../utils/blob";
+
+const buildBlobKey = (originalName: string) => {
+  const ext = (originalName.match(/\.[^/.]+$/) || [".bin"])[0];
+  const unique = crypto.randomBytes(8).toString("hex");
+  return `${Date.now()}-${unique}${ext}`;
+};
 
 export const createSupplier = async (
   req: Request,
   res: Response
 ): Promise<void> => {
   try {
-    const { name, contactPerson, email, phone1, phone2, phone3, address, city, categoryIds, notes } =
-      req.body;
+    const {
+      name,
+      contactPerson,
+      email,
+      phone1,
+      phone2,
+      phone3,
+      address,
+      city,
+      categoryIds,
+      notes,
+      isActive,
+    } = req.body;
+
+    if (!name || !contactPerson || !email || !phone1 || !address) {
+      res.status(400).json({ message: "Missing required fields" });
+      return;
+    }
 
     const existingSupplier = await Supplier.findOne({ email });
     if (existingSupplier) {
-      res
-        .status(400)
-        .json({ message: "Supplier with this name already exists" });
+      res.status(409).json({ message: "Supplier with this email already exists" });
       return;
     }
-    const filename = req.file ? req.file.filename : undefined;
+
+    let imageUrl: string | undefined;
+    if (req.file) {
+      const key = buildBlobKey(req.file.originalname);
+      const uploaded = await uploadBufferToBlob(key, req.file.buffer, req.file.mimetype);
+      imageUrl = uploaded.url;
+    }
 
     const supplier = new Supplier({
       name,
@@ -31,13 +59,15 @@ export const createSupplier = async (
       city,
       notes,
       categoryIds,
-      image: `/uploads/suppliers/${filename}`,
+      isActive: isActive === "false" ? false : true,
+      image: imageUrl,
     });
-    await supplier.save();
 
+    await supplier.save();
     res.status(201).json({ supplier });
-  } catch (error) {
-    res.status(500).json({ message: "Server Error", error });
+  } catch (error: any) {
+    console.error("createSupplier error:", error);
+    res.status(500).json({ message: "Server Error", error: error.message });
   }
 };
 
@@ -67,17 +97,16 @@ export const getSuppliers = async (
 
     if (categoryIds) {
       let ids: string[] = [];
-
       if (Array.isArray(categoryIds)) {
-        // If categoryIds is already an array
         ids = categoryIds.map((id) => id.toString());
       } else if (typeof categoryIds === "string") {
-        // If categoryIds is a comma-separated string
         ids = categoryIds.split(",");
       }
-
       query.categoryIds = {
-        $in: ids.map((id) => new mongoose.Types.ObjectId(id.trim())),
+        $in: ids
+          .map((id) => id.trim())
+          .filter((id) => id.length > 0)
+          .map((id) => new mongoose.Types.ObjectId(id)),
       };
     }
 
@@ -92,11 +121,13 @@ export const getSuppliers = async (
 
     const total = await Supplier.countDocuments(query);
 
-    res
-      .status(200)
-      .json({ suppliers, total, pages: Math.ceil(total / Number(limit)) });
+    res.status(200).json({
+      suppliers,
+      total,
+      pages: Math.ceil(total / Number(limit)),
+    });
   } catch (error: any) {
-    console.error("Error in getSuppliers:", error);
+    console.error("getSuppliers error:", error);
     res.status(500).json({ message: "Server Error", error: error.message });
   }
 };
@@ -147,7 +178,6 @@ export const updateSupplier = async (
       return;
     }
 
-    // Update supplier fields if provided in the request
     if (name) supplier.name = name;
     if (address) supplier.address = address;
     if (city !== undefined) supplier.city = city;
@@ -156,14 +186,25 @@ export const updateSupplier = async (
     if (phone1 !== undefined) supplier.phone1 = phone1;
     if (phone2 !== undefined) supplier.phone2 = phone2;
     if (phone3 !== undefined) supplier.phone3 = phone3;
-    if (categoryIds) supplier.categoryIds = categoryIds;
-    if (notes) supplier.notes = notes;
-    if (typeof isActive !== "undefined") supplier.isActive = isActive;
+    if (categoryIds) supplier.categoryIds = Array.isArray(categoryIds)
+      ? categoryIds
+      : [categoryIds];
+    if (notes !== undefined) supplier.notes = notes;
+    if (typeof isActive !== "undefined") {
+      supplier.isActive = isActive === "false" ? false : isActive === "true" ? true : !!isActive;
+    }
 
-    // Handle image upload if present
     if (req.file) {
-      deleteImage(supplier.image);
-      supplier.image = `/uploads/suppliers/${req.file.filename}`;
+      if (supplier.image && supplier.image.startsWith("/uploads/")) {
+        try {
+          deleteImage(supplier.image);
+        } catch (e) {
+          console.warn("Failed to delete legacy supplier image:", e);
+        }
+      }
+      const key = buildBlobKey(req.file.originalname);
+      const uploaded = await uploadBufferToBlob(key, req.file.buffer, req.file.mimetype);
+      supplier.image = uploaded.url;
     }
 
     await supplier.save();
@@ -173,8 +214,7 @@ export const updateSupplier = async (
       supplier,
     });
   } catch (error: any) {
-    res
-      .status(500)
-      .json({ message: "Internal server error", error: error.message });
+    console.error("updateSupplier error:", error);
+    res.status(500).json({ message: "Internal server error", error: error.message });
   }
 };
