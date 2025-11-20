@@ -3,12 +3,43 @@ import { Request, Response } from "express";
 import Product from "../models/product.model";
 import Order from "../models/order.model";
 import ProductOrder from "./productOrder.controller";
+import { deleteImage } from "../utils/Delete";
+import crypto from "crypto";
+import { uploadBufferToBlob } from "../utils/blob";
 
 const generateOrderNumber = () => {
   const date = new Date().toISOString().split("T")[0].replace(/-/g, "");
   const rand = Math.floor(1000 + Math.random() * 9000);
   return `ORD-${date}-${rand}`;
 };
+
+const buildBlobKey = (originalName: string) => {
+  const ext = (originalName.match(/\.[^/.]+$/) || [".bin"])[0];
+  const unique = crypto.randomBytes(8).toString("hex");
+  return `${Date.now()}-${unique}${ext}`;
+};
+
+// Re-populate helper used before sending responses
+async function populateOrder(orderDoc: any) {
+  if (!orderDoc) return orderDoc;
+  return await orderDoc
+    .populate([
+      { path: "staffId", select: "avatar email fullname" },
+      {
+        path: "supplierId",
+        select:
+          "email name image contactPerson address phone1 phone2 phone3 city",
+      },
+      {
+        path: "items",
+        populate: {
+          path: "productId",
+          select: "name currentStock imageUrl barcode",
+        },
+      },
+    ])
+    .execPopulate?.(); // For older Mongoose versions; ignore if not needed
+}
 
 export const createOrder = async (
   req: Request,
@@ -32,13 +63,16 @@ export const createOrder = async (
       expectedDate?: Date;
     } = req.body;
 
+    if (!supplierId || !Array.isArray(items) || items.length === 0) {
+      res.status(400).json({ message: "supplierId and items are required" });
+      return;
+    }
 
     const productOrdersPromises = items.map(
       async ({ productId, quantity, unitCost, expirationDate }) => {
         const product = await Product.findById(productId);
         if (!product) throw new Error("Product not found");
 
-        // Don't update stock yet - only when status becomes "confirmed"
         const productOrder = await ProductOrder.create({
           productId,
           quantity,
@@ -47,15 +81,12 @@ export const createOrder = async (
           remainingQte: quantity,
         });
         await productOrder.save();
-
-        
         return productOrder._id;
       }
     );
 
     const productOrders = await Promise.all(productOrdersPromises);
 
-    // Calculate total amount from items
     let totalAmount = 0;
     for (const item of items) {
       totalAmount += item.unitCost * item.quantity;
@@ -64,23 +95,28 @@ export const createOrder = async (
     const order = new Order({
       items: productOrders,
       supplierId,
-      status: "not assigned", // Start as "not assigned"
+      status: "not assigned",
       totalAmount,
       notes,
       expectedDate,
       orderNumber: generateOrderNumber(),
     });
 
-    const filename = req.file?.filename;
-    if (filename) {
-      order.bon = `/uploads/orders/${filename}`;
+    if (req.file) {
+      const key = buildBlobKey(req.file.originalname);
+      const uploaded = await uploadBufferToBlob(
+        key,
+        req.file.buffer,
+        req.file.mimetype
+      );
+      order.bon = uploaded.url;
     }
 
     await order.save();
-
+    const populated = await populateOrder(order);
     res.status(201).json({
       message: "Order created successfully",
-      order,
+      order: populated || order,
     });
   } catch (error: any) {
     res.status(500).json({
@@ -90,7 +126,6 @@ export const createOrder = async (
   }
 };
 
-// New endpoint to assign order to staff
 export const assignOrder = async (
   req: Request,
   res: Response
@@ -117,10 +152,13 @@ export const assignOrder = async (
 
     order.staffId = staffId;
     order.status = "assigned";
-    order.assignedDate = new Date();
+    (order as any).assignedDate = new Date();
 
     await order.save();
-    res.status(200).json({ message: "Order assigned successfully", order });
+    const populated = await populateOrder(order);
+    res
+      .status(200)
+      .json({ message: "Order assigned successfully", order: populated || order });
   } catch (error: any) {
     res.status(500).json({
       message: "Internal Server Error",
@@ -129,7 +167,6 @@ export const assignOrder = async (
   }
 };
 
-// New endpoint to confirm order (with bill upload)
 export const confirmOrder = async (
   req: Request,
   res: Response
@@ -155,19 +192,15 @@ export const confirmOrder = async (
       return;
     }
 
-    // Check if bill is uploaded
-    const filename = req.file?.filename;
-    if (!filename) {
-      res.status(400).json({ message: "Bill image is required" });
+    if (!req.file) {
+      res.status(400).json({ message: "Bill file is required for confirmation" });
       return;
     }
 
-    // Update total amount
     if (totalAmount) {
       order.totalAmount = parseFloat(totalAmount);
     }
 
-    // Update stock when order is confirmed
     for (const itemId of order.items) {
       const productOrder: any = await ProductOrder.findById(itemId);
       if (productOrder) {
@@ -179,12 +212,29 @@ export const confirmOrder = async (
       }
     }
 
-    order.bon = `/uploads/orders/${filename}`;
+    if (order.bon && order.bon.startsWith("/uploads/orders/")) {
+      try {
+        deleteImage(order.bon);
+      } catch (e) {
+        console.warn("Failed to delete legacy order bill:", e);
+      }
+    }
+
+    const key = buildBlobKey(req.file.originalname);
+    const uploaded = await uploadBufferToBlob(
+      key,
+      req.file.buffer,
+      req.file.mimetype
+    );
+    order.bon = uploaded.url;
     order.status = "confirmed";
-    order.confirmedDate = new Date();
+    (order as any).confirmedDate = new Date();
 
     await order.save();
-    res.status(200).json({ message: "Order confirmed successfully", order });
+    const populated = await populateOrder(order);
+    res
+      .status(200)
+      .json({ message: "Order confirmed successfully", order: populated || order });
   } catch (error: any) {
     res.status(500).json({
       message: "Internal Server Error",
@@ -199,9 +249,15 @@ export const updateOrder = async (
 ): Promise<void> => {
   try {
     const orderId = req.params.orderId;
-    const { status, expectedDate, canceledDate } = req.body;
+    const { status, expectedDate, canceledDate, totalAmount } = req.body;
 
-    const validStatuses = ["not assigned", "assigned", "confirmed", "paid", "canceled"];
+    const validStatuses = [
+      "not assigned",
+      "assigned",
+      "confirmed",
+      "paid",
+      "canceled",
+    ];
     if (status && !validStatuses.includes(status)) {
       res.status(400).json({
         message: `Invalid status. Use one of: ${validStatuses.join(", ")}`,
@@ -209,31 +265,97 @@ export const updateOrder = async (
       return;
     }
 
-    const order = await Order.findById(orderId);
+    const order = await Order.findById(orderId).populate({
+      path: "items",
+      populate: { path: "productId" },
+    });
     if (!order) {
       res.status(404).json({ message: "Order not found" });
       return;
     }
 
-    // Handle status change to paid
-    if (status === "paid" && order.status === "confirmed") {
+    if (status === "confirmed" && order.status === "assigned") {
+      if (!req.file && !order.bon) {
+        res
+          .status(400)
+          .json({ message: "Bill file required to confirm order" });
+        return;
+      }
+
+      if (req.file) {
+        if (order.bon && order.bon.startsWith("/uploads/orders/")) {
+          try {
+            deleteImage(order.bon);
+          } catch (e) {
+            console.warn("Failed to delete legacy order bill:", e);
+          }
+        }
+        const key = buildBlobKey(req.file.originalname);
+        const uploaded = await uploadBufferToBlob(
+          key,
+          req.file.buffer,
+          req.file.mimetype
+        );
+        order.bon = uploaded.url;
+      }
+
+      if (totalAmount) {
+        order.totalAmount = parseFloat(totalAmount);
+      }
+
+      for (const itemId of order.items) {
+        const productOrder: any = await ProductOrder.findById(itemId);
+        if (productOrder) {
+          const product = await Product.findById(productOrder.productId);
+          if (product) {
+            product.currentStock += productOrder.quantity;
+            await product.save();
+          }
+        }
+      }
+
+      order.status = "confirmed";
+      (order as any).confirmedDate = new Date();
+    } else if (status === "paid" && order.status === "confirmed") {
       order.status = "paid";
       order.paidDate = new Date();
-    }
-
-    // Handle status change to canceled
-    if (status === "canceled") {
+    } else if (status === "canceled") {
       order.status = "canceled";
       order.canceledDate = canceledDate ? new Date(canceledDate) : new Date();
+    } else if (status && status !== order.status) {
+      order.status = status;
     }
 
-    // Update expectedDate if provided
     if (expectedDate !== undefined) {
       order.expectedDate = expectedDate ? new Date(expectedDate) : undefined;
     }
 
+    if (req.file && status !== "confirmed") {
+      if (order.bon && order.bon.startsWith("/uploads/orders/")) {
+        try {
+          deleteImage(order.bon);
+        } catch (e) {
+          console.warn("Failed to delete legacy bill:", e);
+        }
+      }
+      const key = buildBlobKey(req.file.originalname);
+      const uploaded = await uploadBufferToBlob(
+        key,
+        req.file.buffer,
+        req.file.mimetype
+      );
+      order.bon = uploaded.url;
+    }
+
+    if (totalAmount && status !== "confirmed") {
+      order.totalAmount = parseFloat(totalAmount);
+    }
+
     await order.save();
-    res.status(200).json({ message: "Order updated successfully", order });
+    const populated = await populateOrder(order);
+    res
+      .status(200)
+      .json({ message: "Order updated successfully", order: populated || order });
   } catch (error: any) {
     res.status(500).json({
       message: "Internal Server Error",
@@ -272,23 +394,17 @@ export const getOrdersByFilter = async (
     if (orderNumber)
       query.orderNumber = { $regex: orderNumber, $options: "i" };
 
-
     if (supplierIds) {
       let supplierIdArray: string[] = [];
-
       if (Array.isArray(supplierIds)) {
-        
         supplierIdArray = supplierIds.map((id) =>
           typeof id === "string" ? id : String(id)
         );
       } else if (typeof supplierIds === "string") {
-
         supplierIdArray = supplierIds.split(",");
       } else {
-
         supplierIdArray = [String(supplierIds)];
       }
-
 
       supplierIdArray = supplierIdArray
         .map((id) => id.trim())
@@ -308,7 +424,8 @@ export const getOrdersByFilter = async (
         { path: "staffId", select: "avatar email fullname" },
         {
           path: "supplierId",
-          select: "email name image contactPerson address phone1 phone2 phone3 city",
+          select:
+            "email name image contactPerson address phone1 phone2 phone3 city",
         },
         {
           path: "items",
@@ -333,16 +450,11 @@ export const getOrdersByFilter = async (
   }
 };
 
-export const getOrderStats = async (
-  req: Request,
-  res: Response
-): Promise<void> => {
+export const getOrderStats = async (req: Request, res: Response): Promise<void> => {
   try {
-
     const baseQuery: any = req.user?.isAdmin
       ? {}
       : { staffId: req.user?.userId };
-
 
     const startOfMonth = new Date();
     startOfMonth.setDate(1);
@@ -365,13 +477,11 @@ export const getOrderStats = async (
       ...baseQuery,
       status: "confirmed",
     });
-    const paidQuery = {
+    const paidCount = await Order.countDocuments({
       ...baseQuery,
       status: "paid",
       createdAt: { $gte: startOfMonth, $lte: endOfMonth },
-    };
-    const paidCount = await Order.countDocuments(paidQuery);
-
+    });
 
     const totalValueResult = await Order.aggregate([
       {
@@ -400,7 +510,6 @@ export const getOrderStats = async (
       totalValue: parseFloat(totalValue.toFixed(2)),
     });
   } catch (error: any) {
-    console.error("Order stats error:", error);
     res.status(500).json({
       message: "Failed to fetch order statistics",
       error: error.message,
@@ -413,7 +522,6 @@ export const getOrder = async (req: Request, res: Response): Promise<void> => {
     const orderId = req.params.orderId;
     const order = await Order.findById(orderId).populate([
       { path: "staffId", select: "avatar email fullname" },
-
       {
         path: "items",
         populate: {
@@ -440,7 +548,6 @@ export const getOrder = async (req: Request, res: Response): Promise<void> => {
       .json({ message: "Internal Server Error", error: error.message });
   }
 };
-
 export const getOrderAnalytics = async (
   req: Request,
   res: Response

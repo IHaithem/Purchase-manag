@@ -1,12 +1,10 @@
-"use client"
+"use client";
 
-import type React from "react"
-
-import { useState, useEffect } from "react"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
+import React, { useState, useEffect, useRef } from "react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog,
   DialogContent,
@@ -14,188 +12,343 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Upload, X } from "lucide-react";
+import { updateProduct } from "@/lib/apis/products";
+import toast from "react-hot-toast";
+import { resolveImage } from "@/lib/resolveImage";
 
-interface Product {
-  id: string
-  name: string
-  sku: string
-  category: string
-  supplier: string
-  stock: number
-  minStock: number
-  price: number
-  status: string
+interface ProductBackend {
+  _id: string;
+  name: string;
+  barcode?: string;
+  unit: string;
+  categoryId: any;
+  currentStock: number;
+  minQty: number;
+  recommendedQty: number;
+  description?: string;
+  imageUrl?: string;
 }
 
 interface ProductEditDialogProps {
-  product: Product | null
-  open: boolean
-  onOpenChange: (open: boolean) => void
+  product: ProductBackend | null;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onUpdated?: (p: ProductBackend) => void;
 }
 
-export function ProductEditDialog({ product, open, onOpenChange }: ProductEditDialogProps) {
+export function ProductEditDialog({
+  product,
+  open,
+  onOpenChange,
+  onUpdated,
+}: ProductEditDialogProps) {
   const [formData, setFormData] = useState({
     name: "",
-    sku: "",
-    category: "",
-    supplier: "",
-    stock: 0,
-    minStock: 0,
-    price: 0,
+    barcode: "",
+    unit: "",
+    categoryId: "",
+    currentStock: 0,
+    minQty: 0,
+    recommendedQty: 0,
     description: "",
-  })
+  });
+  const [image, setImage] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     if (product) {
       setFormData({
         name: product.name,
-        sku: product.sku,
-        category: product.category,
-        supplier: product.supplier,
-        stock: product.stock,
-        minStock: product.minStock,
-        price: product.price,
-        description: "",
-      })
+        barcode: product.barcode || "",
+        unit: product.unit || "",
+        categoryId:
+          typeof product.categoryId === "object"
+            ? product.categoryId?._id || ""
+            : product.categoryId || "",
+        currentStock: product.currentStock,
+        minQty: product.minQty,
+        recommendedQty: product.recommendedQty,
+        description: product.description || "",
+      });
+      setImage(null);
+      setImagePreview(product.imageUrl ? resolveImage(product.imageUrl) : null);
+    } else {
+      resetForm();
     }
-  }, [product])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [product]);
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    // Handle form submission
-    console.log("Updating product:", formData)
-    onOpenChange(false)
-  }
+  const handleInputChange = (field: string, value: string | number) =>
+    setFormData((prev) => ({ ...prev, [field]: value }));
 
-  const handleInputChange = (field: string, value: string | number) => {
-    setFormData((prev) => ({
-      ...prev,
-      [field]: value,
-    }))
-  }
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    if (f) {
+      if (!f.type.startsWith("image/")) {
+        toast.error("Please select an image file");
+        return;
+      }
+      setImage(f);
+      setImagePreview(URL.createObjectURL(f));
+    }
+  };
+
+  const removeImage = () => {
+    setImage(null);
+    setImagePreview(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  const resetForm = () => {
+    setFormData({
+      name: "",
+      barcode: "",
+      unit: "",
+      categoryId: "",
+      currentStock: 0,
+      minQty: 0,
+      recommendedQty: 0,
+      description: "",
+    });
+    setImage(null);
+    setImagePreview(null);
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!product) return;
+    setIsSubmitting(true);
+
+    const fd = new FormData();
+    fd.append("name", formData.name);
+    fd.append("unit", formData.unit);
+    fd.append("categoryId", formData.categoryId);
+    fd.append("currentStock", formData.currentStock.toString());
+    fd.append("minQty", formData.minQty.toString());
+    fd.append("recommendedQty", formData.recommendedQty.toString());
+    if (formData.barcode) fd.append("barcode", formData.barcode);
+    if (formData.description) fd.append("description", formData.description);
+    if (image) fd.append("image", image);
+
+    const { success, product: updated, message } = await updateProduct(
+      product._id,
+      fd
+    );
+    if (success && updated) {
+      toast.success("Product updated");
+      onUpdated?.(updated);
+      onOpenChange(false);
+    } else {
+      toast.error(message);
+    }
+
+    setIsSubmitting(false);
+  };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[600px]">
+    <Dialog
+      open={open}
+      onOpenChange={(o) => {
+        onOpenChange(o);
+        if (!o) resetForm();
+      }}
+    >
+      <DialogContent className="sm:max-w-[650px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="font-heading">{product ? "Edit Product" : "Add New Product"}</DialogTitle>
+          <DialogTitle className="font-heading">
+            {product ? "Edit Product" : "Add Product"}
+          </DialogTitle>
           <DialogDescription>
-            {product ? "Update product information and inventory details." : "Add a new product to your inventory."}
+            {product
+              ? "Update product attributes. Image optional."
+              : "Provide product details."}
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
+        <form onSubmit={handleSubmit} className="space-y-6">
+          {/* Image */}
+          <div className="space-y-2">
+            <Label>Product Image (Optional)</Label>
+            <div className="flex items-center gap-4">
+              {imagePreview ? (
+                <div className="relative w-24 h-24 rounded-xl overflow-hidden border">
+                  <img
+                    src={imagePreview}
+                    alt="Preview"
+                    className="object-cover w-full h-full"
+                  />
+                  <button
+                    type="button"
+                    onClick={removeImage}
+                    className="absolute top-1 right-1 bg-destructive text-destructive-foreground rounded-full p-1"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </div>
+              ) : (
+                <div className="flex items-center justify-center w-24 h-24 border-2 border-dashed rounded-xl bg-muted/20">
+                  <Upload className="h-8 w-8 text-muted-foreground" />
+                </div>
+              )}
+              <div className="flex flex-col gap-2">
+                <Label
+                  htmlFor="edit-product-image-upload"
+                  className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-md cursor-pointer hover:opacity-90"
+                >
+                  <Upload className="h-4 w-4" />
+                  {imagePreview ? "Change Image" : "Upload Image"}
+                </Label>
+                <p className="text-xs text-muted-foreground">
+                  PNG, JPG up to 5MB
+                </p>
+                <Input
+                  id="edit-product-image-upload"
+                  type="file"
+                  accept="image/*"
+                  ref={fileInputRef}
+                  onChange={handleImageUpload}
+                  className="hidden"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Basic fields */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="name">Product Name</Label>
+              <Label>Name *</Label>
               <Input
-                id="name"
                 value={formData.name}
                 onChange={(e) => handleInputChange("name", e.target.value)}
-                placeholder="Enter product name"
                 required
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="sku">SKU</Label>
+              <Label>Barcode (Optional)</Label>
               <Input
-                id="sku"
-                value={formData.sku}
-                onChange={(e) => handleInputChange("sku", e.target.value)}
-                placeholder="Enter SKU"
-                required
+                value={formData.barcode}
+                onChange={(e) => handleInputChange("barcode", e.target.value)}
               />
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Unit *</Label>
+                <Select
+                  value={formData.unit}
+                  onValueChange={(v) => handleInputChange("unit", v)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select unit" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="piece">Piece</SelectItem>
+                    <SelectItem value="box">Box</SelectItem>
+                    <SelectItem value="pack">Pack</SelectItem>
+                    <SelectItem value="bottle">Bottle</SelectItem>
+                    <SelectItem value="kilogram">Kilogram</SelectItem>
+                    <SelectItem value="liter">Liter</SelectItem>
+                    <SelectItem value="meter">Meter</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Category *</Label>
+                <Input
+                  value={formData.categoryId}
+                  onChange={(e) =>
+                    handleInputChange("categoryId", e.target.value)
+                  }
+                  required
+                />
+              </div>
+            </div>
+
+          {/* Stock */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="category">Category</Label>
-              <Select value={formData.category} onValueChange={(value) => handleInputChange("category", value)}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select category" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="electronics">Electronics</SelectItem>
-                  <SelectItem value="accessories">Accessories</SelectItem>
-                  <SelectItem value="cables">Cables</SelectItem>
-                  <SelectItem value="storage">Storage</SelectItem>
-                </SelectContent>
-              </Select>
+              <Label>Current Stock *</Label>
+              <Input
+                type="number"
+                min={0}
+                value={formData.currentStock}
+                onChange={(e) =>
+                  handleInputChange(
+                    "currentStock",
+                    parseInt(e.target.value) || 0
+                  )
+                }
+                required
+              />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="supplier">Supplier</Label>
+              <Label>Minimum Qty *</Label>
               <Input
-                id="supplier"
-                value={formData.supplier}
-                onChange={(e) => handleInputChange("supplier", e.target.value)}
-                placeholder="Enter supplier name"
+                type="number"
+                min={0}
+                value={formData.minQty}
+                onChange={(e) =>
+                  handleInputChange("minQty", parseInt(e.target.value) || 0)
+                }
                 required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Recommended Qty (Optional)</Label>
+              <Input
+                type="number"
+                min={0}
+                value={formData.recommendedQty}
+                onChange={(e) =>
+                  handleInputChange(
+                    "recommendedQty",
+                    parseInt(e.target.value) || 0
+                  )
+                }
               />
             </div>
           </div>
 
-          <div className="grid grid-cols-3 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="stock">Current Stock</Label>
-              <Input
-                id="stock"
-                type="number"
-                value={formData.stock}
-                onChange={(e) => handleInputChange("stock", Number.parseInt(e.target.value) || 0)}
-                placeholder="0"
-                min="0"
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="minStock">Minimum Stock</Label>
-              <Input
-                id="minStock"
-                type="number"
-                value={formData.minStock}
-                onChange={(e) => handleInputChange("minStock", Number.parseInt(e.target.value) || 0)}
-                placeholder="0"
-                min="0"
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="price">Price (DZA)</Label>
-              <Input
-                id="price"
-                type="number"
-                step="0.01"
-                value={formData.price}
-                onChange={(e) => handleInputChange("price", Number.parseFloat(e.target.value) || 0)}
-                placeholder="0.00"
-                min="0"
-                required
-              />
-            </div>
-          </div>
-
+          {/* Description */}
           <div className="space-y-2">
-            <Label htmlFor="description">Description (Optional)</Label>
+            <Label>Description (Optional)</Label>
             <Textarea
-              id="description"
-              value={formData.description}
-              onChange={(e) => handleInputChange("description", e.target.value)}
-              placeholder="Enter product description"
               rows={3}
+              value={formData.description}
+              onChange={(e) =>
+                handleInputChange("description", e.target.value)
+              }
+              placeholder="Describe the product"
             />
           </div>
 
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => onOpenChange(false)}
+              disabled={isSubmitting}
+            >
               Cancel
             </Button>
-            <Button type="submit">{product ? "Update Product" : "Add Product"}</Button>
+            <Button type="submit" disabled={isSubmitting}>
+              {isSubmitting ? "Saving..." : "Save"}
+            </Button>
           </DialogFooter>
         </form>
       </DialogContent>
     </Dialog>
-  )
+  );
 }

@@ -15,16 +15,11 @@ const productRouter = Router();
 
 productRouter.use(authenticate);
 
-productRouter.post("/", upload("products").single("image"), createProduct);
-productRouter.put(
-  "/:productId",
-  requireAdmin,
-  upload("products").single("image"),
-  updateProduct
-);
+productRouter.post("/", upload().single("image"), createProduct);
+productRouter.put("/:productId", requireAdmin, upload().single("image"), updateProduct);
 productRouter.get("/", getAllProducts);
-productRouter.get("/low", getLowStockProducts);
-productRouter.get("/over", getOverStockProducts);
+productRouter.get("/low", getLowStockProducts);      // unchanged (not in shown snippet)
+productRouter.get("/over", getOverStockProducts);    // unchanged
 productRouter.get("/:productId", getProduct);
 productRouter.delete("/:productId", deleteProduct);
 

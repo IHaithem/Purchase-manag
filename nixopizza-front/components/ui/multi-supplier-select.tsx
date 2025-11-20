@@ -1,6 +1,7 @@
 // components/ui/multi-supplier-select.tsx
 "use client";
 
+import { resolveImage } from "@/lib/resolveImage";
 import * as React from "react";
 import { useState, useEffect, useRef } from "react";
 import { cn } from "@/lib/utils";
@@ -206,7 +207,7 @@ export function MultiSupplierSelect({
                   onClick={() => handleSelect(supplier)}
                 >
                   <img
-                    src={process.env.NEXT_PUBLIC_BASE_URL + supplier.image}
+                    src={resolveImage(supplier.image)}
                     alt={supplier.name}
                     className="w-8 h-8 rounded-full object-cover"
                   />

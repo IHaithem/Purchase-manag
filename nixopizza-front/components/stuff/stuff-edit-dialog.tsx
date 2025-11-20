@@ -1,7 +1,5 @@
 "use client";
-
-import type React from "react";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -21,26 +19,26 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Upload, User } from "lucide-react";
+import { User, Upload } from "lucide-react";
 import { updateStuff } from "@/lib/apis/stuff";
 import toast from "react-hot-toast";
 import { IUser } from "@/store/user.store";
+import { resolveImage } from "@/lib/resolveImage";
 
 interface StuffEditDialogProps {
   stuff: IUser | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onUpdated: (updated: IUser) => void;
 }
 
 export function StuffEditDialog({
   stuff,
   open,
   onOpenChange,
+  onUpdated,
 }: StuffEditDialogProps) {
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
-  // ✅ Initialize with proper boolean value
   const [formData, setFormData] = useState({
     fullname: "",
     email: "",
@@ -48,12 +46,12 @@ export function StuffEditDialog({
     phone2: "",
     phone3: "",
     address: "",
-    isActive: true, // ✅ boolean, not Boolean constructor
+    isActive: true,
     notes: "",
+    password: "", // optional new password
     avatar: null as File | null,
   });
 
-  // Reset form when dialog opens or stuff changes
   useEffect(() => {
     if (open && stuff) {
       setFormData({
@@ -63,71 +61,67 @@ export function StuffEditDialog({
         phone2: stuff.phone2 || "",
         phone3: stuff.phone3 || "",
         address: stuff.address || "",
-        isActive: stuff.isActive, // ✅ boolean from backend
+        isActive: stuff.isActive,
         notes: "",
+        password: "",
         avatar: null,
       });
       setAvatarPreview(stuff.avatar || null);
     }
   }, [open, stuff]);
 
-  const handleInputChange = (field: string, value: string) => {
-    setFormData((prev) => ({
-      ...prev,
-      [field]: value,
-    }));
-  };
+  const handleInputChange = (field: string, value: string) =>
+    setFormData((prev) => ({ ...prev, [field]: value }));
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setAvatarPreview(reader.result as string);
-      };
-      reader.readAsDataURL(file);
-      setFormData((prev) => ({ ...prev, avatar: file }));
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      toast.error("Please select a valid image");
+      return;
     }
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("Image exceeds 5MB");
+      return;
+    }
+    setFormData((prev) => ({ ...prev, avatar: file }));
+    const reader = new FileReader();
+    reader.onloadend = () => setAvatarPreview(reader.result as string);
+    reader.readAsDataURL(file);
   };
 
-  const triggerFileInput = () => {
-    fileInputRef.current?.click();
-  };
+  const currentAvatarDisplay = avatarPreview
+    ? avatarPreview.startsWith("http") ||
+      avatarPreview.startsWith("data:") ||
+      avatarPreview.startsWith("blob:")
+      ? avatarPreview
+      : resolveImage(avatarPreview)
+    : null;
 
   const handleUpdate = async () => {
     if (!stuff?._id) return;
 
-    try {
-      const payload = new FormData();
+    const payload = new FormData();
+    if (formData.fullname) payload.append("fullname", formData.fullname);
+    if (formData.email) payload.append("email", formData.email);
+    if (formData.phone1) payload.append("phone1", formData.phone1);
+    if (formData.phone2) payload.append("phone2", formData.phone2);
+    if (formData.phone3) payload.append("phone3", formData.phone3);
+    if (formData.address) payload.append("address", formData.address);
+    payload.append("status", formData.isActive ? "Active" : "Inactive");
+    if (formData.notes) payload.append("notes", formData.notes);
+    if (formData.password.trim().length > 0)
+      payload.append("password", formData.password.trim());
+    if (formData.avatar) payload.append("image", formData.avatar);
 
-      // Add text fields
-      payload.append("fullname", formData.fullname);
-      payload.append("email", formData.email);
-      if (formData.phone1) payload.append("phone1", formData.phone1);
-      if (formData.phone2) payload.append("phone2", formData.phone2);
-      if (formData.phone3) payload.append("phone3", formData.phone3);
-      if (formData.address) payload.append("address", formData.address);
-
-      // ✅ Convert boolean to string for backend compatibility
-      payload.append("status", formData.isActive ? "Active" : "Inactive");
-
-      if (formData.notes) payload.append("notes", formData.notes);
-
-      // Add new avatar if selected
-      if (formData.avatar instanceof File) {
-        payload.append("image", formData.avatar);
-      }
-
-      const data = await updateStuff(stuff._id, payload);
-      if (data.success) {
-        toast.success("Staff updated successfully!");
-        onOpenChange(false);
-      } else {
-        toast.error(data.message || "Failed to update staff");
-      }
-    } catch (error) {
-      console.error("Update staff error:", error);
-      toast.error("An unexpected error occurred");
+    const data = await updateStuff(stuff._id, payload);
+    if (data.success && data.staff) {
+      toast.success("Staff updated successfully!");
+      onUpdated(data.staff);
+      setAvatarPreview(data.staff.avatar || avatarPreview);
+      onOpenChange(false);
+    } else {
+      toast.error(data.message || "Failed to update staff");
     }
   };
 
@@ -145,17 +139,13 @@ export function StuffEditDialog({
           {/* Avatar Upload */}
           <div className="space-y-2">
             <Label>Profile Picture</Label>
-            <div
-              onClick={triggerFileInput}
+            <label
+              htmlFor="edit-staff-avatar"
               className="flex flex-col items-center justify-center gap-3 p-6 border-2 border-dashed border-muted-foreground/25 rounded-xl bg-muted/30 hover:bg-muted/50 transition-colors cursor-pointer"
             >
-              {avatarPreview ? (
+              {currentAvatarDisplay ? (
                 <img
-                  src={
-                    avatarPreview.startsWith("http")
-                      ? avatarPreview
-                      : `${process.env.NEXT_PUBLIC_BASE_URL}${avatarPreview}`
-                  }
+                  src={currentAvatarDisplay}
                   alt="Avatar preview"
                   className="w-20 h-20 rounded-full object-cover border-2 border-background shadow-sm"
                 />
@@ -164,45 +154,36 @@ export function StuffEditDialog({
                   <div className="p-3 bg-primary/10 rounded-full">
                     <User className="h-6 w-6 text-primary" />
                   </div>
-                  <div className="text-center">
-                    <p className="text-sm font-medium">Click to upload</p>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      PNG, JPG up to 5MB
-                    </p>
-                  </div>
+                  <p className="text-xs text-muted-foreground">Click to upload</p>
                 </>
               )}
-            </div>
-            <input
+            </label>
+            <Input
+              id="edit-staff-avatar"
               type="file"
-              ref={fileInputRef}
-              onChange={handleFileChange}
               accept="image/*"
               className="hidden"
+              onChange={handleFileChange}
             />
           </div>
 
           {/* Full Name */}
           <div className="space-y-2">
-            <Label htmlFor="fullname">Full Name *</Label>
+            <Label>Full Name *</Label>
             <Input
-              id="fullname"
               value={formData.fullname}
               onChange={(e) => handleInputChange("fullname", e.target.value)}
-              placeholder="Enter full name"
               required
             />
           </div>
 
           {/* Email */}
           <div className="space-y-2">
-            <Label htmlFor="email">Email *</Label>
+            <Label>Email *</Label>
             <Input
-              id="email"
               type="email"
               value={formData.email}
               onChange={(e) => handleInputChange("email", e.target.value)}
-              placeholder="email@example.com"
               required
             />
           </div>
@@ -210,49 +191,40 @@ export function StuffEditDialog({
           {/* Phone Numbers */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="phone1">Phone 1 (Optional)</Label>
+              <Label>Phone 1</Label>
               <Input
-                id="phone1"
                 value={formData.phone1}
                 onChange={(e) => handleInputChange("phone1", e.target.value)}
-                placeholder="+1 (555) 000-0000"
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="phone2">Phone 2 (Optional)</Label>
+              <Label>Phone 2</Label>
               <Input
-                id="phone2"
                 value={formData.phone2}
                 onChange={(e) => handleInputChange("phone2", e.target.value)}
-                placeholder="+1 (555) 000-0000"
               />
             </div>
           </div>
-
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="phone3">Phone 3 (Optional)</Label>
+              <Label>Phone 3</Label>
               <Input
-                id="phone3"
                 value={formData.phone3}
                 onChange={(e) => handleInputChange("phone3", e.target.value)}
-                placeholder="+1 (555) 000-0000"
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="address">Address (Optional)</Label>
+              <Label>Address</Label>
               <Input
-                id="address"
                 value={formData.address}
                 onChange={(e) => handleInputChange("address", e.target.value)}
-                placeholder="123 Main St, City"
               />
             </div>
           </div>
 
           {/* Status */}
           <div className="space-y-2">
-            <Label htmlFor="status">Status</Label>
+            <Label>Status</Label>
             <Select
               value={formData.isActive ? "Active" : "Inactive"}
               onValueChange={(value) =>
@@ -263,7 +235,7 @@ export function StuffEditDialog({
               }
             >
               <SelectTrigger>
-                <SelectValue />
+                <SelectValue placeholder="Select status" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="Active">Active</SelectItem>
@@ -272,11 +244,21 @@ export function StuffEditDialog({
             </Select>
           </div>
 
+          {/* Optional Password Change */}
+          <div className="space-y-2">
+            <Label>New Password (leave blank to keep current)</Label>
+            <Input
+              type="password"
+              value={formData.password}
+              onChange={(e) => handleInputChange("password", e.target.value)}
+              placeholder="••••••••"
+            />
+          </div>
+
           {/* Notes */}
           <div className="space-y-2">
-            <Label htmlFor="notes">Notes (Optional)</Label>
+            <Label>Notes (Optional)</Label>
             <Textarea
-              id="notes"
               value={formData.notes}
               onChange={(e) => handleInputChange("notes", e.target.value)}
               placeholder="Additional information..."
@@ -286,11 +268,7 @@ export function StuffEditDialog({
         </div>
 
         <DialogFooter className="gap-2 sm:gap-0">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => onOpenChange(false)}
-          >
+          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
           <Button

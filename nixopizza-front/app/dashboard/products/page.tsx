@@ -4,13 +4,13 @@ import { ProductsTable } from "@/components/products/products-table";
 import { ProductsHeader } from "@/components/products/products-header";
 import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
-import { getProducts } from "@/lib/apis/products";
-import { ICategory } from "../categories/page";
+import { getProducts, deleteProduct } from "@/lib/apis/products"; // ensure deleteProduct exists
+import { useRouter } from "next/navigation";
 
 export interface IProduct {
   _id: string;
   name: string;
-  barcode: string;
+  barcode?: string;
   unit: string;
   categoryId: {
     _id: string;
@@ -25,6 +25,13 @@ export interface IProduct {
   createdAt?: Date;
   updatedAt?: Date;
 }
+
+interface ProductsTableProps {
+  products: IProduct[];
+  onEdit: (p: IProduct) => void;
+  onDelete: (id: string) => Promise<void>;
+}
+
 export default function ProductsPage() {
   const [products, setProducts] = useState<IProduct[]>([]);
   const [search, setSearch] = useState("");
@@ -33,8 +40,10 @@ export default function ProductsPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [limit, setLimit] = useState(10);
+  const router = useRouter();
+
   useEffect(() => {
-    const fecthProducts = async () => {
+    const fetchProducts = async () => {
       const { products, pages, message, success } = await getProducts({
         limit,
         page: currentPage,
@@ -49,8 +58,23 @@ export default function ProductsPage() {
         toast.error(message);
       }
     };
-    fecthProducts();
+    fetchProducts();
   }, [limit, currentPage, search, categoryId, sort]);
+
+  const handleEdit = (p: any) => {
+    router.push(`/dashboard/products/edit/${p._id}`);
+  };
+
+  const handleDelete = async (id: string) => {
+    const { success, message } = await deleteProduct(id);
+    if (success) {
+      toast.success("Product deleted");
+      setProducts((prev) => prev.filter((p) => p._id !== id));
+    } else {
+      toast.error(message);
+    }
+  };
+
   return (
     <DashboardLayout>
       <div className="space-y-6">
@@ -59,14 +83,11 @@ export default function ProductsPage() {
           onCategoryChange={setCategoryId}
           onSortChange={setSort}
         />
+        {/* You can later add pagination controls using currentPage/totalPages */}
         <ProductsTable
-          totalPages={totalPages}
-          setCurrentPage={setCurrentPage}
-          currentPage={currentPage}
           products={products}
-          setProducts={setProducts}
-          limit={limit}
-          setLimit={setLimit}
+          onEdit={handleEdit}
+          onDelete={handleDelete}
         />
       </div>
     </DashboardLayout>

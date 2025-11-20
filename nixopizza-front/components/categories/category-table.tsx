@@ -1,39 +1,43 @@
-"use client";
-
-import * as React from "react";
-import { Button } from "@/components/ui/button";
+import React from "react";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import {
   Table,
   TableBody,
-  TableCaption,
   TableCell,
   TableHead,
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-  MoreHorizontal,
-  Plus,
-  Laptop,
-  Sofa,
-  Shirt,
-  Shapes,
-  Edit,
-  Trash2,
-  Package,
-} from "lucide-react";
+import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { MoreHorizontal, Edit, Trash2 } from "lucide-react";
 import { CategoryEditDialog } from "./category-edit-dialog";
 import { deleteCategory } from "@/lib/apis/categories";
 import toast from "react-hot-toast";
-import { ICategory } from "@/app/dashboard/categories/page";
+
+export interface ICategory {
+  _id: string;
+  name: string;
+  description?: string;
+  image: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+const resolveCategoryImage = (image?: string) => {
+  if (!image) return "";
+  return image.startsWith("http") ? image : process.env.NEXT_PUBLIC_BASE_URL + image;
+};
 
 export default function CategoriesTable({
   categories,
@@ -47,13 +51,14 @@ export default function CategoriesTable({
   const [openCategoryEdit, setOpenCategoryEdit] = React.useState(false);
   const [selectedCategory, setSelectedCategory] =
     React.useState<ICategory | null>(null);
+
   const handleEdit = (category: ICategory) => {
     setOpenCategoryEdit(true);
     setSelectedCategory(category);
   };
+
   const handleDelete = async (categoryId: string) => {
     const { success, message } = await deleteCategory(categoryId);
-
     if (success) {
       toast.success("Category Deleted Successfully");
       setCategories(categories.filter((cat) => cat._id !== categoryId));
@@ -68,7 +73,11 @@ export default function CategoriesTable({
     );
   };
 
-  const isFiltered = searchQuery;
+  const filtered = searchQuery
+    ? categories.filter((c) =>
+        c.name.toLowerCase().includes(searchQuery.toLowerCase())
+      )
+    : categories;
 
   return (
     <div className="container mx-auto">
@@ -77,7 +86,7 @@ export default function CategoriesTable({
           <CardTitle>Categories</CardTitle>
         </CardHeader>
         <CardContent>
-          {categories.length > 0 ? (
+          {filtered.length > 0 ? (
             <div className="rounded-md border">
               <Table>
                 <TableHeader>
@@ -88,18 +97,15 @@ export default function CategoriesTable({
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {categories.map((category) => (
-                    <TableRow key={category.id} className="border-b">
+                  {filtered.map((category) => (
+                    <TableRow key={category._id} className="border-b">
                       <TableCell className="font-medium">
                         <div className="flex items-center gap-3">
                           <img
-                            src={
-                              process.env.NEXT_PUBLIC_BASE_URL + category.image
-                            }
+                            src={resolveCategoryImage(category.image)}
                             alt={category.name}
                             className="w-12 h-12 rounded-full object-cover"
                           />
-
                           <div>{category.name}</div>
                         </div>
                       </TableCell>
@@ -135,29 +141,21 @@ export default function CategoriesTable({
               </Table>
             </div>
           ) : (
-            // Empty state component
-            <div className="flex flex-col items-center justify-center py-12 text-center">
-              <div className="mb-4 p-3 bg-muted rounded-full">
-                <Package className="h-10 w-10 text-muted-foreground" />
-              </div>
-              <h3 className="text-xl font-semibold mb-1">
-                {isFiltered ? "No categories found" : "No categories yet"}
-              </h3>
-              <p className="text-muted-foreground mb-4">
-                {isFiltered
-                  ? "You don't have any categories with this filtration."
-                  : "You don't have any categories yet. Start by creating one."}
-              </p>
+            <div className="text-sm text-muted-foreground">
+              No categories found
             </div>
           )}
         </CardContent>
       </Card>
-      <CategoryEditDialog
-        open={openCategoryEdit}
-        onOpenChange={setOpenCategoryEdit}
-        category={selectedCategory}
-        setCategory={setCategoryOnChange}
-      />
+
+      {selectedCategory && (
+        <CategoryEditDialog
+          category={selectedCategory}
+          open={openCategoryEdit}
+          onOpenChange={setOpenCategoryEdit}
+          setCategory={setCategoryOnChange}
+        />
+      )}
     </div>
   );
 }

@@ -1,119 +1,82 @@
-// components/ui/category-select.tsx
-"use client";
-
-import * as React from "react";
-import { useState, useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
+import { X, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { Search, X } from "lucide-react";
-import { getCategories } from "@/lib/apis/categories";
-import { ICategory } from "@/app/dashboard/categories/page";
 
-interface CategorySelectProps {
-  categories?: ICategory[]; // Optional prop for categories to display
-  selectedCategory: ICategory | null;
-  onCategoryChange: (category: ICategory | null) => void;
-  placeholder?: string;
-  className?: string;
+interface Category {
+  _id: string;
+  name: string;
+  image: string;
+  description?: string;
 }
 
+interface Props {
+  categories: Category[];
+  selectedCategory: Category | null;
+  onSelect: (c: Category | null) => void;
+  placeholder?: string;
+  className?: string;
+  isLoading?: boolean;
+}
+
+const resolveCategoryImage = (image?: string) => {
+  if (!image) return "";
+  return image.startsWith("http") ? image : process.env.NEXT_PUBLIC_BASE_URL + image;
+};
+
 export function CategorySelect({
-  categories, // Don't provide a default here to distinguish between passed and undefined
+  categories,
   selectedCategory,
-  onCategoryChange,
-  placeholder = "Select a category...",
+  onSelect,
+  placeholder = "Select category...",
   className,
-}: CategorySelectProps) {
+  isLoading = false,
+}: Props) {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
-  const [localCategories, setLocalCategories] = useState<ICategory[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const containerRef = useRef<HTMLDivElement>(null);
+  const [localCategories, setLocalCategories] = useState<Category[]>(categories);
+  const containerRef = useRef<HTMLDivElement | null>(null);
 
-  // Fetch categories if not provided via props
   useEffect(() => {
-    const fetchCategories = async () => {
-      if (!categories) {
-        // Only fetch if categories prop is not provided
-        try {
-          const {
-            categories: fetchedCategories,
-            success,
-            message,
-          } = await getCategories();
-          if (success) {
-            setLocalCategories(fetchedCategories || []);
-          } else {
-            console.error("Error fetching categories:", message);
-            setLocalCategories([]);
-          }
-        } catch (error) {
-          console.error("Error fetching categories:", error);
-          setLocalCategories([]);
-        } finally {
-          setIsLoading(false);
-        }
-      } else {
-        // If categories prop is provided, use it
-        setLocalCategories(categories);
-        setIsLoading(false);
-      }
-    };
-
-    fetchCategories();
+    setLocalCategories(categories);
   }, [categories]);
 
-  // Close dropdown when clicking outside
   useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (
-        containerRef.current &&
-        !containerRef.current.contains(event.target as Node)
-      ) {
+    function handleClickOutside(e: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
         setIsOpen(false);
         setSearchTerm("");
       }
     }
-
     document.addEventListener("mousedown", handleClickOutside);
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-    };
+    return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const handleSelect = (category: ICategory) => {
-    onCategoryChange(category);
+  const handleSelect = (c: Category) => {
+    onSelect(c);
     setIsOpen(false);
     setSearchTerm("");
   };
 
   const handleClear = (e: React.MouseEvent) => {
     e.stopPropagation();
-    onCategoryChange(null);
+    onSelect(null);
     setSearchTerm("");
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    setSearchTerm(value);
-
-    if (!isOpen) {
-      setIsOpen(true);
-    }
+    setSearchTerm(e.target.value);
   };
 
-  const handleInputClick = (e: React.MouseEvent) => {
+  const handleInputClick = (e: React.MouseEvent<HTMLInputElement>) => {
     e.stopPropagation();
-    if (!isOpen) {
-      setIsOpen(true);
-    }
+    if (!isOpen) setIsOpen(true);
   };
 
-  // Filter categories based on search term
   const filteredCategories =
     searchTerm.trim() === ""
       ? localCategories
-      : localCategories.filter((category) =>
-          category.name.toLowerCase().includes(searchTerm.toLowerCase())
+      : localCategories.filter((c) =>
+          c.name.toLowerCase().includes(searchTerm.toLowerCase())
         );
 
   if (isLoading) {
@@ -131,7 +94,6 @@ export function CategorySelect({
 
   return (
     <div className={cn("relative", className)} ref={containerRef}>
-      {/* Searchable input display */}
       <div
         className={cn(
           "flex items-center justify-between rounded-md border bg-background px-3 py-2 text-sm",
@@ -149,7 +111,7 @@ export function CategorySelect({
         {selectedCategory && !searchTerm ? (
           <div className="flex items-center gap-2">
             <img
-              src={process.env.NEXT_PUBLIC_BASE_URL + selectedCategory.image}
+              src={resolveCategoryImage(selectedCategory.image)}
               alt={selectedCategory.name}
               className="w-6 h-6 rounded-full object-cover"
             />
@@ -180,29 +142,26 @@ export function CategorySelect({
         </div>
       </div>
 
-      {/* Dropdown content */}
       {isOpen && (
         <div className="absolute z-50 mt-1 w-full rounded-md border bg-popover p-1 text-popover-foreground shadow-md">
           <div className="max-h-60 overflow-auto">
             {filteredCategories && filteredCategories.length > 0 ? (
-              filteredCategories.map((category) => (
+              filteredCategories.map((c) => (
                 <div
-                  key={category._id}
+                  key={c._id}
                   className={cn(
                     "flex items-center gap-3 rounded-sm px-2 py-1.5 text-sm",
                     "cursor-pointer hover:bg-accent hover:text-accent-foreground",
-                    selectedCategory?._id === category._id && "bg-accent"
+                    selectedCategory?._id === c._id && "bg-accent"
                   )}
-                  onClick={() => handleSelect(category)}
+                  onClick={() => handleSelect(c)}
                 >
                   <img
-                    src={process.env.NEXT_PUBLIC_BASE_URL + category.image}
-                    alt={category.name}
+                    src={resolveCategoryImage(c.image)}
+                    alt={c.name}
                     className="w-8 h-8 rounded-full object-cover"
                   />
-                  <div className="flex flex-col font-medium">
-                    {category.name}
-                  </div>
+                  <div className="flex flex-col font-medium">{c.name}</div>
                 </div>
               ))
             ) : (
