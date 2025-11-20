@@ -120,14 +120,19 @@ export function SupplierEditDialog({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-
     if (!supplier) return;
 
     const supplierData = new FormData();
     supplierData.append("name", formData.name);
     supplierData.append("contactPerson", formData.contactPerson);
-    if (formData.email.trim() !== "")
-      supplierData.append("email", formData.email);
+
+    if (formData.email.trim() !== "") {
+      supplierData.append("email", formData.email.trim());
+    } else if (supplier.email && formData.email.trim() === "") {
+      // user cleared existing email
+      supplierData.append("removeEmail", "true");
+    }
+
     supplierData.append("phone1", formData.phone1);
     if (formData.phone2) supplierData.append("phone2", formData.phone2);
     if (formData.phone3) supplierData.append("phone3", formData.phone3);
@@ -140,9 +145,7 @@ export function SupplierEditDialog({
       supplierData.append("categoryIds", id);
     });
 
-    if (image) {
-      supplierData.append("image", image);
-    }
+    if (image) supplierData.append("image", image);
 
     const { success, message, supplier: updatedSupplier } = await updateSupplier(
       supplier._id,
@@ -185,7 +188,6 @@ export function SupplierEditDialog({
     const updatedSelectedCategories = selectedCategories.filter(
       (_, i) => i !== index
     );
-
     setFormData((prev) => ({
       ...prev,
       categoryIds: updatedCategoryIds,
@@ -305,7 +307,6 @@ export function SupplierEditDialog({
             </div>
           </div>
 
-          {/* Image */}
           <div className="space-y-2">
             <Label>Supplier Image (Optional)</Label>
             <div className="flex items-center gap-4">
@@ -352,7 +353,6 @@ export function SupplierEditDialog({
             </div>
           </div>
 
-          {/* Categories */}
           <div className="space-y-2">
             <Label>Categories (Optional)</Label>
             <CategorySelect
@@ -387,7 +387,6 @@ export function SupplierEditDialog({
             )}
           </div>
 
-          {/* Status */}
           <div className="space-y-2">
             <Label>Status</Label>
             <Select
@@ -404,7 +403,6 @@ export function SupplierEditDialog({
             </Select>
           </div>
 
-          {/* Notes */}
           <div className="space-y-2">
             <Label>Notes (Optional)</Label>
             <Textarea

@@ -2,7 +2,6 @@ import axiosAPI from "../axios.ts";
 
 const apiURL = "/suppliers";
 
-// Get suppliers
 export const get_all_suppliers = async (params?: any): Promise<any> => {
   try {
     const customParamsSerializer = (params: any) => {
@@ -10,19 +9,13 @@ export const get_all_suppliers = async (params?: any): Promise<any> => {
       for (const key in params) {
         if (Object.prototype.hasOwnProperty.call(params, key)) {
           const val = params[key];
-            if (val !== null && typeof val !== "undefined") {
-            if (Array.isArray(val)) {
-              if (val.length > 0) {
-                parts.push(
-                  `${encodeURIComponent(key)}=${encodeURIComponent(
-                    val.join(",")
-                  )}`
-                );
-              }
-            } else {
+          if (val !== null && typeof val !== "undefined") {
+            if (Array.isArray(val) && val.length > 0) {
               parts.push(
-                `${encodeURIComponent(key)}=${encodeURIComponent(val)}`
+                `${encodeURIComponent(key)}=${encodeURIComponent(val.join(","))}`
               );
+            } else if (!Array.isArray(val)) {
+              parts.push(`${encodeURIComponent(key)}=${encodeURIComponent(val)}`);
             }
           }
         }
@@ -35,57 +28,52 @@ export const get_all_suppliers = async (params?: any): Promise<any> => {
     });
     if (res.status === 200 && res.data) {
       return res.data;
-    } else {
-      throw res;
     }
-  } catch (err: any) {
+    throw res;
+  } catch {
     throw Error("supplier (Get-All) : Something went wrong");
   }
 };
 
-// Get supplier by id
 export const get_supplier_by_id = async (id: string): Promise<any> => {
   try {
     const res = await axiosAPI.get<any>(`${apiURL}/${id}`);
-    if (res.status === 200 && res.data) {
-      return res.data;
-    } else {
-      throw res;
-    }
+    if (res.status === 200 && res.data) return res.data;
+    throw res;
   } catch (err: any) {
     if (err.status === 404) throw 404;
     throw Error("suppliers (Get) : Something went wrong");
   }
 };
 
-// Create supplier (email optional)
 export const create_supplier = async (supplierData: FormData): Promise<any> => {
   try {
-    // Remove empty email before sending (optional)
-    if (!supplierData.get("email")) {
-      supplierData.delete("email");
-    }
+    // Remove empty email entirely
+    const email = supplierData.get("email");
+    if (!email || String(email).trim() === "") supplierData.delete("email");
+
     const res = await axiosAPI.post<any>(apiURL, supplierData);
     if (res.status === 201 && res.data) {
       return res.data;
-    } else {
-      throw res.status;
     }
+    throw res.status;
   } catch (err: any) {
     const status = err.response?.status || err.status;
     if (status === 409) {
       throw Error("Email already in use");
     }
-    throw Error("suppliers (Create) : Something went wrong");
+    throw Error(err.response?.data?.message || "suppliers (Create) : Something went wrong");
   }
 };
 
-// Update supplier
 export const updateSupplier = async (id: string, formData: FormData) => {
   try {
-    if (!formData.get("email")) {
+    const email = formData.get("email");
+    if (!email || String(email).trim() === "") {
       formData.delete("email");
+      formData.append("removeEmail", "true");
     }
+
     const {
       data: { supplier },
     } = await axiosAPI.put("/suppliers/" + id, formData);
@@ -101,7 +89,6 @@ export const updateSupplier = async (id: string, formData: FormData) => {
   }
 };
 
-// Delete supplier
 export const deleteSupplier = async (id: string) => {
   try {
     const {
