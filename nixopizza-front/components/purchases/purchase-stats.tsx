@@ -1,5 +1,5 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { getOrdersStats } from "@/lib/apis/purchase-list";
+import { getOrderStats } from "@/lib/apis/purchase-list";
 import { ShoppingCart, Clock, CheckCircle, DollarSign } from "lucide-react";
 import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
@@ -14,16 +14,16 @@ export function PurchaseStats() {
 
   useEffect(() => {
     const fetchStats = async () => {
-      const response = await getOrdersStats();
+      const response = await getOrderStats();
 
-      if (response.success) {
+      if (response.success && response.stats) {
         const {
           notAssignedOrders = 0,
           assignedOrders = 0,
           confirmedOrders = 0,
           paidOrders = 0,
           totalValue = 0,
-        } = response;
+        } = response.stats;
 
         const pendingOrders = notAssignedOrders + assignedOrders;
 
