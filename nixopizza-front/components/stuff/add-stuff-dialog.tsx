@@ -82,7 +82,7 @@ export function AddStuffDialog({ addNewStuff }: AddStuffDialogProps) {
     payload.append("status", formData.status);
     if (formData.notes) payload.append("notes", formData.notes);
     if (formData.avatar instanceof File) {
-      payload.append("image", formData.avatar); // backend expects "image"
+      payload.append("image", formData.avatar);
     }
 
     const data = await createStuff(payload);
@@ -112,9 +112,7 @@ export function AddStuffDialog({ addNewStuff }: AddStuffDialogProps) {
       </DialogTrigger>
       <DialogContent className="sm:max-w-[550px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="font-heading">
-            Add New Staff Member
-          </DialogTitle>
+          <DialogTitle className="font-heading">Add New Staff Member</DialogTitle>
           <DialogDescription>
             Fill in the details below to add a new team member.
           </DialogDescription>
@@ -134,9 +132,7 @@ export function AddStuffDialog({ addNewStuff }: AddStuffDialogProps) {
                   className="w-24 h-24 rounded-full object-cover shadow"
                 />
               ) : (
-                <span className="text-xs text-muted-foreground">
-                  Click to upload
-                </span>
+                <span className="text-xs text-muted-foreground">Click to upload</span>
               )}
               <Input
                 ref={fileInputRef}

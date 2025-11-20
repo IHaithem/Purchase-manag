@@ -7,6 +7,7 @@ import {
   getMonthlySpendingAnalytics,
   newStaffMember,
   updateStaff,
+  deleteStaff,
 } from "../controllers/admin.controller";
 
 const adminRouter = Router();
@@ -17,6 +18,7 @@ adminRouter.use(requireAdmin);
 adminRouter.get("/staffs", getAllStaff);
 adminRouter.post("/staffs", upload().single("image"), newStaffMember);
 adminRouter.put("/staffs/:staffId", upload().single("image"), updateStaff);
+adminRouter.delete("/staffs/:staffId", deleteStaff);
 
 adminRouter.get("/analytics/category", getCategoryAnalytics);
 adminRouter.get("/analytics/monthly", getMonthlySpendingAnalytics);
