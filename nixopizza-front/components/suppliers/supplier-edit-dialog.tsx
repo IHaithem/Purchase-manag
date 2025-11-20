@@ -1,8 +1,6 @@
-// components/suppliers/supplier-edit-dialog.tsx
 "use client";
 
-import type React from "react";
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -81,7 +79,7 @@ export function SupplierEditDialog({
       setFormData({
         name: supplier.name,
         contactPerson: supplier.contactPerson,
-        email: supplier.email,
+        email: supplier.email || "",
         phone1: supplier.phone1,
         phone2: supplier.phone2 || "",
         phone3: supplier.phone3 || "",
@@ -128,7 +126,8 @@ export function SupplierEditDialog({
     const supplierData = new FormData();
     supplierData.append("name", formData.name);
     supplierData.append("contactPerson", formData.contactPerson);
-    supplierData.append("email", formData.email);
+    if (formData.email.trim() !== "")
+      supplierData.append("email", formData.email);
     supplierData.append("phone1", formData.phone1);
     if (formData.phone2) supplierData.append("phone2", formData.phone2);
     if (formData.phone3) supplierData.append("phone3", formData.phone3);
@@ -183,7 +182,9 @@ export function SupplierEditDialog({
 
   const handleRemoveCategory = (index: number) => {
     const updatedCategoryIds = formData.categoryIds.filter((_, i) => i !== index);
-    const updatedSelectedCategories = selectedCategories.filter((_, i) => i !== index);
+    const updatedSelectedCategories = selectedCategories.filter(
+      (_, i) => i !== index
+    );
 
     setFormData((prev) => ({
       ...prev,
@@ -230,7 +231,7 @@ export function SupplierEditDialog({
         <form onSubmit={handleSubmit} className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-2">
-              <Label>Company Name</Label>
+              <Label>Company Name *</Label>
               <Input
                 value={formData.name}
                 onChange={(e) => handleInputChange("name", e.target.value)}
@@ -238,7 +239,7 @@ export function SupplierEditDialog({
               />
             </div>
             <div className="space-y-2">
-              <Label>Contact Person</Label>
+              <Label>Contact Person *</Label>
               <Input
                 value={formData.contactPerson}
                 onChange={(e) =>
@@ -251,16 +252,16 @@ export function SupplierEditDialog({
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-2">
-              <Label>Email</Label>
+              <Label>Email (Optional)</Label>
               <Input
                 type="email"
                 value={formData.email}
                 onChange={(e) => handleInputChange("email", e.target.value)}
-                required
+                placeholder="supplier@example.com"
               />
             </div>
             <div className="space-y-2">
-              <Label>Phone 1</Label>
+              <Label>Phone 1 *</Label>
               <Input
                 value={formData.phone1}
                 onChange={(e) => handleInputChange("phone1", e.target.value)}
@@ -288,7 +289,7 @@ export function SupplierEditDialog({
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-2">
-              <Label>Address</Label>
+              <Label>Address *</Label>
               <Input
                 value={formData.address}
                 onChange={(e) => handleInputChange("address", e.target.value)}
@@ -306,7 +307,7 @@ export function SupplierEditDialog({
 
           {/* Image */}
           <div className="space-y-2">
-            <Label>Supplier Image</Label>
+            <Label>Supplier Image (Optional)</Label>
             <div className="flex items-center gap-4">
               {imagePreview ? (
                 <div className="relative w-24 h-24 rounded-xl overflow-hidden border">
@@ -331,7 +332,7 @@ export function SupplierEditDialog({
 
               <div className="flex flex-col gap-2">
                 <Label
-                  htmlFor="image-upload"
+                  htmlFor="supplier-edit-image-upload"
                   className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-md cursor-pointer hover:opacity-90"
                 >
                   <Upload className="h-4 w-4" />
@@ -341,7 +342,7 @@ export function SupplierEditDialog({
                   PNG, JPG up to 5MB
                 </p>
                 <Input
-                  id="image-upload"
+                  id="supplier-edit-image-upload"
                   type="file"
                   accept="image/*"
                   onChange={handleImageUpload}
@@ -353,11 +354,13 @@ export function SupplierEditDialog({
 
           {/* Categories */}
           <div className="space-y-2">
-            <Label>Categories</Label>
+            <Label>Categories (Optional)</Label>
             <CategorySelect
               categories={availableCategories}
               selectedCategory={null}
-              onSelect={(category: any) => handleAddCategory(category as ICategory | null)}
+              onSelect={(category: any) =>
+                handleAddCategory(category as ICategory | null)
+              }
               placeholder="Select categories"
               className="border rounded-lg"
               isLoading={false}
@@ -365,7 +368,11 @@ export function SupplierEditDialog({
             {selectedCategories.length > 0 && (
               <div className="flex flex-wrap gap-2 mt-2">
                 {selectedCategories.map((category, index) => (
-                  <Badge key={category._id} variant="outline" className="flex items-center gap-1">
+                  <Badge
+                    key={category._id}
+                    variant="outline"
+                    className="flex items-center gap-1"
+                  >
                     {category.name}
                     <button
                       type="button"

@@ -36,19 +36,27 @@ export const createProduct = async (req: Request, res: Response): Promise<void> 
       imageUrl = uploaded.url;
     }
 
-    const newProduct = await Product.create({
-      name,
-      barcode,
-      unit,
-      categoryId,
-      description,
-      currentStock: Number(currentStock),
-      minQty: Number(minQty),
-      recommendedQty: recommendedQty !== undefined ? Number(recommendedQty) : 0,
-      imageUrl,
-    });
+    try {
+      const newProduct = await Product.create({
+        name,
+        barcode,
+        unit,
+        categoryId,
+        description,
+        currentStock: Number(currentStock),
+        minQty: Number(minQty),
+        recommendedQty: recommendedQty !== undefined ? Number(recommendedQty) : 0,
+        imageUrl,
+      });
 
-    res.status(201).json({ message: "Product created successfully", product: newProduct });
+      res.status(201).json({ message: "Product created successfully", product: newProduct });
+    } catch (err: any) {
+      if (err.code === 11000 && err.keyPattern?.name) {
+        res.status(409).json({ message: "Product name must be unique" });
+        return;
+      }
+      throw err;
+    }
   } catch (error: any) {
     console.error("Product create error:", error);
     res.status(500).json({ message: "Internal server error", err: error.message });
@@ -104,7 +112,16 @@ export const updateProduct = async (req: Request, res: Response): Promise<void> 
       product.imageUrl = uploaded.url;
     }
 
-    await product.save();
+    try {
+      await product.save();
+    } catch (err: any) {
+      if (err.code === 11000 && err.keyPattern?.name) {
+        res.status(409).json({ message: "Product name must be unique" });
+        return;
+      }
+      throw err;
+    }
+
     res.status(200).json({ message: "Product updated successfully", product });
   } catch (error: any) {
     console.error("Product update error:", error);
@@ -195,7 +212,7 @@ export const deleteProduct = async (req: Request, res: Response): Promise<void> 
 // LOW STOCK
 export const getLowStockProducts = async (req: Request, res: Response): Promise<void> => {
   try {
-    const products = await Product.find({}); // could filter later
+    const products = await Product.find({});
     const critical = products.filter(p => p.currentStock <= 0);
     const high = products.filter(p => p.currentStock > 0 && p.currentStock < p.minQty / 2);
     const medium = products.filter(

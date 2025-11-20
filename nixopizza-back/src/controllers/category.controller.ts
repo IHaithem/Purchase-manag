@@ -25,10 +25,7 @@ export const getCategoriesByFilter = async (req: Request, res: Response): Promis
 
 /**
  * POST /api/categories
- * multipart/form-data fields:
- * - name (string, required)
- * - description (string, optional)
- * - image (file, optional)
+ * Fields: name (required), description (optional), image (optional)
  */
 export const createCategory = async (req: Request, res: Response): Promise<void> => {
   try {
@@ -50,30 +47,34 @@ export const createCategory = async (req: Request, res: Response): Promise<void>
       const unique = crypto.randomBytes(8).toString("hex");
       const key = `${Date.now()}-${unique}${ext}`;
       const uploaded = await uploadBufferToBlob(key, req.file.buffer, req.file.mimetype);
-      imageUrl = uploaded.url; // store blob public URL directly
-    } else {
-      imageUrl = ""; // or a default placeholder URL
+      imageUrl = uploaded.url;
     }
 
-    const newCategory = await Category.create({
-      name,
-      description,
-      image: imageUrl,
-    });
+    try {
+      const newCategory = await Category.create({
+        name,
+        description,
+        image: imageUrl,
+      });
 
-    res.status(201).json({
-      message: "Category created successfully",
-      category: newCategory,
-    });
+      res.status(201).json({
+        message: "Category created successfully",
+        category: newCategory,
+      });
+    } catch (err: any) {
+      if (err.code === 11000 && err.keyPattern?.name) {
+        res.status(409).json({ message: "Category name must be unique" });
+        return;
+      }
+      throw err;
+    }
   } catch (error: any) {
-    console.error(error);
     res.status(500).json({ message: "Internal server error", err: error.message });
   }
 };
 
 /**
  * PUT /api/categories/:categoryId
- * Allows updating name, description, and optionally replacing image.
  */
 export const updateCategory = async (req: Request, res: Response): Promise<void> => {
   try {
@@ -92,10 +93,9 @@ export const updateCategory = async (req: Request, res: Response): Promise<void>
     }
 
     if (name) category.name = name;
-    if (description) category.description = description;
+    if (description !== undefined) category.description = description;
 
     if (req.file) {
-      // Optionally delete local legacy file only if it's a legacy path
       if (category.image && category.image.startsWith("/uploads/")) {
         try {
           deleteImage(category.image);
@@ -103,7 +103,6 @@ export const updateCategory = async (req: Request, res: Response): Promise<void>
           console.warn("Failed to delete legacy image:", e);
         }
       }
-
       const ext = (req.file.originalname.match(/\.[^/.]+$/) || [".bin"])[0];
       const unique = crypto.randomBytes(8).toString("hex");
       const key = `${Date.now()}-${unique}${ext}`;
@@ -111,14 +110,21 @@ export const updateCategory = async (req: Request, res: Response): Promise<void>
       category.image = uploaded.url;
     }
 
-    await category.save();
+    try {
+      await category.save();
+    } catch (err: any) {
+      if (err.code === 11000 && err.keyPattern?.name) {
+        res.status(409).json({ message: "Category name must be unique" });
+        return;
+      }
+      throw err;
+    }
 
     res.status(200).json({
       message: "Category updated successfully",
       category,
     });
   } catch (error: any) {
-    console.error(error);
     res.status(500).json({ message: "Internal server error", err: error.message });
   }
 };

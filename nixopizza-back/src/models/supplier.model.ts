@@ -3,7 +3,7 @@ import { Document, Schema, model } from "mongoose";
 export interface ISupplier extends Document {
   name: string;
   contactPerson: String;
-  email: string;
+  email?: string;
   phone1: string;
   phone2?: string;
   phone3?: string;
@@ -29,7 +29,7 @@ const supplierSchema = new Schema<ISupplier>(
     },
     email: {
       type: String,
-      required: [true, "Shop Email Is Required"],
+      required: false,
       trim: true,
       unique: true,
       lowercase: true,

@@ -20,6 +20,7 @@ const productSchema = new Schema<IProduct>(
       type: String,
       required: [true, "Product Name Is Required"],
       trim: true,
+      unique: true,
     },
     barcode: {
       type: String,

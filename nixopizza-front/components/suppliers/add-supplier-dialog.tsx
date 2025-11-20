@@ -1,4 +1,3 @@
-// components/suppliers/add-supplier-dialog.tsx
 "use client";
 
 import * as React from "react";
@@ -61,7 +60,7 @@ export function AddSupplierDialog({
   const [formData, setFormData] = useState({
     name: "",
     contactPerson: "",
-    email: "",
+    email: "", // optional
     phone1: "",
     phone2: "",
     phone3: "",
@@ -79,7 +78,8 @@ export function AddSupplierDialog({
       const supplierData = new FormData();
       supplierData.append("name", formData.name);
       supplierData.append("contactPerson", formData.contactPerson);
-      supplierData.append("email", formData.email);
+      if (formData.email.trim() !== "")
+        supplierData.append("email", formData.email);
       supplierData.append("phone1", formData.phone1);
       if (formData.phone2) supplierData.append("phone2", formData.phone2);
       if (formData.phone3) supplierData.append("phone3", formData.phone3);
@@ -90,13 +90,13 @@ export function AddSupplierDialog({
       formData.categoryIds.forEach((id) => supplierData.append("categoryIds", id));
       if (image) supplierData.append("image", image);
 
-      const { supplier } = await create_supplier(supplierData);
-      onAdding(supplier);
+      const result = await create_supplier(supplierData);
+      onAdding(result.supplier);
       toast.success("Supplier Created Successfully");
       resetForm();
       setOpen(false);
-    } catch {
-      toast.error("Failed to Add Supplier");
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to Add Supplier");
     } finally {
       setIsSubmitting(false);
     }
@@ -128,7 +128,6 @@ export function AddSupplierDialog({
         return;
       }
       setImage(file);
-      // Use object URL directly (do NOT prepend base URL)
       setImagePreview(URL.createObjectURL(file));
     }
   };
@@ -178,7 +177,7 @@ export function AddSupplierDialog({
             Add New Supplier
           </DialogTitle>
           <DialogDescription>
-            Add a new supplier with contact details and categories.
+            Add a new supplier. Email and image are optional.
           </DialogDescription>
         </DialogHeader>
 
@@ -212,12 +211,12 @@ export function AddSupplierDialog({
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-2">
-              <Label>Email *</Label>
+              <Label>Email (Optional)</Label>
               <Input
                 type="email"
                 value={formData.email}
                 onChange={(e) => handleInputChange("email", e.target.value)}
-                required
+                placeholder="supplier@example.com"
               />
             </div>
             <div className="space-y-2">
@@ -267,7 +266,7 @@ export function AddSupplierDialog({
 
           {/* Image */}
           <div className="space-y-2">
-            <Label>Supplier Image</Label>
+            <Label>Supplier Image (Optional)</Label>
             <div className="flex items-center gap-4">
               {imagePreview ? (
                 <div className="relative w-24 h-24 rounded-xl overflow-hidden border">
@@ -313,7 +312,7 @@ export function AddSupplierDialog({
 
           {/* Categories */}
           <div className="space-y-2">
-            <Label>Categories</Label>
+            <Label>Categories (Optional)</Label>
             <CategorySelect
               categories={availableCategories}
               selectedCategory={null}
@@ -327,7 +326,11 @@ export function AddSupplierDialog({
                 {formData.categoryIds.map((id, idx) => {
                   const cat = categories.find((c) => c._id === id);
                   return (
-                    <Badge key={id} variant="outline" className="flex items-center gap-1">
+                    <Badge
+                      key={id}
+                      variant="outline"
+                      className="flex items-center gap-1"
+                    >
                       {cat?.name || id}
                       <button
                         type="button"
