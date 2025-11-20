@@ -1,5 +1,5 @@
 "use client";
-import { useState, useRef } from "react";
+import { useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Plus } from "lucide-react";
+import { Plus, Upload } from "lucide-react";
 import toast from "react-hot-toast";
 import { createStuff } from "@/lib/apis/stuff";
 
@@ -23,7 +23,6 @@ interface AddStuffDialogProps {
 export function AddStuffDialog({ addNewStuff }: AddStuffDialogProps) {
   const [open, setOpen] = useState(false);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const [formData, setFormData] = useState({
     fullname: "",
@@ -35,7 +34,7 @@ export function AddStuffDialog({ addNewStuff }: AddStuffDialogProps) {
     address: "",
     status: "Active",
     notes: "",
-    avatar: "" as string | File,
+    avatar: null as File | null,
   });
 
   const handleInputChange = (field: string, value: string) =>
@@ -43,15 +42,20 @@ export function AddStuffDialog({ addNewStuff }: AddStuffDialogProps) {
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => setAvatarPreview(reader.result as string);
-      reader.readAsDataURL(file);
-      setFormData((prev) => ({ ...prev, avatar: file }));
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      toast.error("Please select a valid image");
+      return;
     }
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("Image exceeds 5MB");
+      return;
+    }
+    setFormData((prev) => ({ ...prev, avatar: file }));
+    const reader = new FileReader();
+    reader.onloadend = () => setAvatarPreview(reader.result as string);
+    reader.readAsDataURL(file);
   };
-
-  const triggerFileInput = () => fileInputRef.current?.click();
 
   const resetForm = () => {
     setFormData({
@@ -64,13 +68,16 @@ export function AddStuffDialog({ addNewStuff }: AddStuffDialogProps) {
       address: "",
       status: "Active",
       notes: "",
-      avatar: "",
+      avatar: null,
     });
     setAvatarPreview(null);
-    if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
   const handleCreateStuff = async () => {
+    if (!formData.fullname || !formData.email || !formData.password) {
+      toast.error("Fullname, email & password are required");
+      return;
+    }
     const payload = new FormData();
     payload.append("fullname", formData.fullname);
     payload.append("email", formData.email);
@@ -81,14 +88,12 @@ export function AddStuffDialog({ addNewStuff }: AddStuffDialogProps) {
     if (formData.address) payload.append("address", formData.address);
     payload.append("status", formData.status);
     if (formData.notes) payload.append("notes", formData.notes);
-    if (formData.avatar instanceof File) {
-      payload.append("image", formData.avatar);
-    }
+    if (formData.avatar) payload.append("image", formData.avatar);
 
     const data = await createStuff(payload);
     if (data.success) {
       addNewStuff(data.staff);
-      toast.success("Staff member added successfully!");
+      toast.success("Staff member added!");
       setOpen(false);
       resetForm();
     } else {
@@ -119,10 +124,11 @@ export function AddStuffDialog({ addNewStuff }: AddStuffDialogProps) {
         </DialogHeader>
 
         <div className="space-y-6 py-4">
+          {/* Avatar Upload */}
           <div className="space-y-2">
             <Label>Profile Picture</Label>
-            <div
-              onClick={triggerFileInput}
+            <label
+              htmlFor="staff-avatar"
               className="flex flex-col items-center justify-center gap-3 p-6 border-2 border-dashed border-muted-foreground/25 rounded-xl bg-muted/30 hover:bg-muted/50 transition-colors cursor-pointer"
             >
               {avatarPreview ? (
@@ -132,16 +138,21 @@ export function AddStuffDialog({ addNewStuff }: AddStuffDialogProps) {
                   className="w-24 h-24 rounded-full object-cover shadow"
                 />
               ) : (
-                <span className="text-xs text-muted-foreground">Click to upload</span>
+                <>
+                  <div className="p-3 bg-primary/10 rounded-full">
+                    <Upload className="h-6 w-6 text-primary" />
+                  </div>
+                  <p className="text-xs text-muted-foreground">Click to upload</p>
+                </>
               )}
-              <Input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={handleFileChange}
-              />
-            </div>
+            </label>
+            <Input
+              id="staff-avatar"
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={handleFileChange}
+            />
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -219,11 +230,7 @@ export function AddStuffDialog({ addNewStuff }: AddStuffDialogProps) {
           </div>
 
           <div className="flex justify-end gap-3">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setOpen(false)}
-            >
+            <Button type="button" variant="outline" onClick={() => setOpen(false)}>
               Cancel
             </Button>
             <Button type="button" onClick={handleCreateStuff}>

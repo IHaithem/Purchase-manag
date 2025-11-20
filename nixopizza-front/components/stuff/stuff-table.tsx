@@ -37,7 +37,6 @@ import { StuffEditDialog } from "./stuff-edit-dialog";
 
 interface StuffTableProps {
   stuffs: IUser[];
-  // NOTE: setStuffs accepts ONLY an array (not a functional updater) in this version.
   setStuffs: (s: IUser[]) => void;
   totalPages: number;
   currentPage: number;
@@ -90,7 +89,6 @@ export function StuffTable({
     }
   };
 
-  // FIX: do NOT use functional updater since setStuffs type is (s: IUser[]) => void
   const handleUpdated = (updated: IUser) => {
     const newList = stuffs.map((s) => (s._id === updated._id ? updated : s));
     setStuffs(newList);

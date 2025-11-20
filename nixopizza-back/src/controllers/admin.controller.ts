@@ -5,7 +5,6 @@ import { deleteImage } from "../utils/Delete";
 import crypto from "crypto";
 import { uploadBufferToBlob } from "../utils/blob";
 
-/** Helper to generate unique blob key */
 function buildBlobKey(originalName: string) {
   const ext = (originalName.match(/\.[^/.]+$/) || [".bin"])[0];
   const unique = crypto.randomBytes(8).toString("hex");
@@ -43,6 +42,7 @@ export const getAllStaff = async (req: Request, res: Response): Promise<void> =>
       currentPage: Number(page),
     });
   } catch (error: any) {
+    console.error("getAllStaff error:", error);
     res.status(500).json({ message: "Internal server error", error: error.message });
   }
 };
@@ -55,7 +55,7 @@ export const newStaffMember = async (
   try {
     const { fullname, email, password, phone1, phone2, phone3, address } = req.body;
     if (!fullname || !email || !password) {
-      res.status(400).json({ message: "All fields must be filled" });
+      res.status(400).json({ message: "fullname, email and password are required" });
       return;
     }
     const existing = await User.findOne({ email });
@@ -83,6 +83,7 @@ export const newStaffMember = async (
     await staff.save();
     res.status(201).json({ message: "Staff created successfully", staff });
   } catch (error: any) {
+    console.error("newStaffMember error:", error);
     res.status(500).json({ message: "Internal server error", error: error.message });
   }
 };
@@ -94,33 +95,48 @@ export const updateStaff = async (
 ): Promise<void> => {
   try {
     const { staffId } = req.params;
-    const { fullname, email, phone1, phone2, phone3, address, status, notes } = req.body;
+    const {
+      fullname,
+      email,
+      phone1,
+      phone2,
+      phone3,
+      address,
+      status,
+      notes,      // optional; not stored unless you added field
+      password,   // optional new password
+    } = req.body;
 
-    if (!fullname || !email) {
-      res.status(400).json({ message: "Full name and email are required" });
-      return;
-    }
-
-    const staff = await User.findById(staffId);
+    const staff = await User.findById(staffId).select("+password");
     if (!staff) {
       res.status(404).json({ message: "Staff not found" });
       return;
     }
 
-    const existingEmail = await User.findOne({ email, _id: { $ne: staffId } });
-    if (existingEmail) {
-      res.status(409).json({ message: "Email already in use by another staff member" });
-      return;
+    // If email changes, enforce uniqueness
+    if (email && email !== staff.email) {
+      const existingEmail = await User.findOne({ email, _id: { $ne: staffId } });
+      if (existingEmail) {
+        res.status(409).json({ message: "Email already in use" });
+        return;
+      }
     }
 
-    staff.fullname = fullname;
-    staff.email = email;
-    staff.phone1 = phone1;
-    staff.phone2 = phone2;
-    staff.phone3 = phone3;
-    staff.address = address || "";
-    staff.isActive = status === "Active";
-    // notes not stored in schema (ignored unless you added field)
+    // Update only provided fields (keep old values otherwise)
+    if (fullname) staff.fullname = fullname;
+    if (email) staff.email = email;
+    staff.phone1 = phone1 ?? staff.phone1;
+    staff.phone2 = phone2 ?? staff.phone2;
+    staff.phone3 = phone3 ?? staff.phone3;
+    staff.address = address ?? staff.address;
+    if (typeof status !== "undefined") {
+      staff.isActive = status === "Active";
+    }
+
+    // Optional password update
+    if (password && password.trim().length > 0) {
+      staff.password = password.trim(); // will be hashed by pre-save
+    }
 
     if (req.file) {
       if (staff.avatar && staff.avatar.startsWith("/uploads/")) {
@@ -131,11 +147,16 @@ export const updateStaff = async (
         }
       }
       const key = buildBlobKey(req.file.originalname);
-      const uploaded = await uploadBufferToBlob(key, req.file.buffer, req.file.mimetype);
+      const uploaded = await uploadBufferToBlob(
+        key,
+        req.file.buffer,
+        req.file.mimetype
+      );
       staff.avatar = uploaded.url;
     }
 
     await staff.save();
+
     res.status(200).json({
       message: "Staff updated successfully",
       staff: {
@@ -151,7 +172,7 @@ export const updateStaff = async (
       },
     });
   } catch (error: any) {
-    console.error("Update staff error:", error);
+    console.error("updateStaff error:", error);
     res.status(500).json({ message: "Internal server error", error: error.message });
   }
 };
@@ -174,6 +195,7 @@ export const deleteStaff = async (req: Request, res: Response): Promise<void> =>
     }
     res.status(200).json({ message: "Staff deleted successfully" });
   } catch (error: any) {
+    console.error("deleteStaff error:", error);
     res.status(500).json({ message: "Internal server error", error: error.message });
   }
 };
