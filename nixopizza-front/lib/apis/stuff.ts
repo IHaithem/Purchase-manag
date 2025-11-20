@@ -51,16 +51,15 @@ export const createStuff = async (data: FormData) => {
 };
 
 // ✅ Update stuff
-export const updateStuff = async (id: string, stuff: any) => {
+export const updateStuff = async (id: string, formData: FormData) => {
   try {
-    const { data } = await axiosAPI.put(`/admin/staffs/${id}`, stuff);
-    return { success: true, stuff: data?.stuff };
+    const { data } = await axiosAPI.put(`/admin/staffs/${id}`, formData);
+    return { success: true, staff: data.staff };
   } catch (error: any) {
-    console.error("UpdateStuff error:", error);
     const status = error.response?.status;
     if (status === 409)
-      return { success: false, message: "Conflict: Stuff name already exists" };
-    const message = error.response?.data?.message || "Failed to update Stuff";
+      return { success: false, message: "Email already in use" };
+    const message = error.response?.data?.message || "Failed to update staff";
     return { success: false, message };
   }
 };
