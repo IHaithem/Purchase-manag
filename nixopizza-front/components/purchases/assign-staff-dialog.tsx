@@ -1,6 +1,3 @@
-// components/purchases/assign-staff-dialog.tsx
-"use client";
-
 import { useState, useEffect } from "react";
 import {
   Dialog,
@@ -14,8 +11,6 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { getStuff } from "@/lib/apis/stuff";
 import { assignOrder } from "@/lib/apis/purchase-list";
-
-
 import {
   Select,
   SelectContent,
@@ -26,6 +21,7 @@ import {
 import { UserPlus, Loader2 } from "lucide-react";
 import toast from "react-hot-toast";
 import { IOrder } from "@/app/dashboard/purchases/page";
+import { resolveImage } from "@/lib/resolveImage";
 
 interface Staff {
   _id: string;
@@ -52,71 +48,55 @@ export function AssignStaffDialog({
   const [isLoading, setIsLoading] = useState(false);
   const [isFetchingStaff, setIsFetchingStaff] = useState(false);
 
-  // Fetch staff members
   useEffect(() => {
-const fetchStaff = async () => {
-  try {
-    setIsFetchingStaff(true);
-    const params = { page: 1, limit: 1000 } as unknown as { name?: string };
-    const { success, staffs, message } = await getStuff(params);
-
-    if (success && staffs) {
-      setStaffList(staffs);
-    } else {
-      toast.error(message || "Failed to load staff members");
-    }
-  } catch (error) {
-    console.error("Failed to fetch staff:", error);
-    toast.error("Failed to load staff members");
-  } finally {
-    setIsFetchingStaff(false);
-  }
-};
-
-
-
-    if (open) {
-      fetchStaff();
-    }
+    const fetchStaff = async () => {
+      try {
+        setIsFetchingStaff(true);
+        const params = { page: 1, limit: 500 } as { name?: string };
+        const { success, staffs, message } = await getStuff(params);
+        if (success && staffs) {
+          setStaffList(staffs);
+        } else {
+          toast.error(message || "Failed to load staff members");
+        }
+      } catch (error) {
+        console.error("Failed to fetch staff:", error);
+        toast.error("Failed to load staff members");
+      } finally {
+        setIsFetchingStaff(false);
+      }
+    };
+    if (open) fetchStaff();
   }, [open]);
 
-const handleAssign = async () => {
-  if (!selectedStaffId) {
-    toast.error("Please select a staff member");
-    return;
-  }
+  const handleAssign = async () => {
+    if (!selectedStaffId) {
+      toast.error("Please select a staff member");
+      return;
+    }
+    if (!order) return;
 
-  if (!order) return;
-
-  setIsLoading(true);
-  try {
-    const { success, order: updatedOrder, message } = await assignOrder(
-      order._id,
-      selectedStaffId
-    );
-
-    if (success && updatedOrder) {
-  toast.success("Order assigned successfully");
-  onOrderUpdated(updatedOrder);
-  onOpenChange(false);
-  setSelectedStaffId("");
-
-  // ✅ Refresh page after successful assignment
-  setTimeout(() => {
-    window.location.reload();
-  }, 800);
-} else {
-  toast.error(message || "Failed to assign order");
-}
-
-  } catch (error) {
-    console.error("Error assigning order:", error);
-    toast.error("Failed to assign order");
-  } finally {
-    setIsLoading(false);
-  }
-};
-
+    setIsLoading(true);
+    try {
+      const { success, order: updatedOrder, message } = await assignOrder(
+        order._id,
+        selectedStaffId
+      );
+      if (success && updatedOrder) {
+        toast.success("Order assigned successfully");
+        onOrderUpdated(updatedOrder);
+        onOpenChange(false);
+        setSelectedStaffId("");
+      } else {
+        toast.error(message || "Failed to assign order");
+      }
+    } catch (error) {
+      console.error("Error assigning order:", error);
+      toast.error("Failed to assign order");
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   if (!order) return null;
 
@@ -143,7 +123,10 @@ const handleAssign = async () => {
                 <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
               </div>
             ) : (
-              <Select value={selectedStaffId} onValueChange={setSelectedStaffId}>
+              <Select
+                value={selectedStaffId}
+                onValueChange={setSelectedStaffId}
+              >
                 <SelectTrigger className="border-2 border-input focus:ring-2 focus:ring-primary/30 rounded-lg">
                   <SelectValue placeholder="Select staff member" />
                 </SelectTrigger>
@@ -152,7 +135,7 @@ const handleAssign = async () => {
                     <SelectItem key={staff._id} value={staff._id}>
                       <div className="flex items-center gap-2">
                         <img
-                          src={process.env.NEXT_PUBLIC_BASE_URL + staff.avatar}
+                          src={resolveImage(staff.avatar)}
                           alt={staff.fullname}
                           className="w-6 h-6 rounded-full object-cover"
                         />
@@ -170,17 +153,16 @@ const handleAssign = async () => {
             )}
           </div>
 
-          {/* Order Details */}
-          <div className="bg-muted/50 rounded-lg p-4 space-y-2">
-            <div className="flex justify-between text-sm">
+          <div className="bg-muted/50 rounded-lg p-4 space-y-2 text-sm">
+            <div className="flex justify-between">
               <span className="text-muted-foreground">Supplier:</span>
               <span className="font-medium">{order.supplierId?.name}</span>
             </div>
-            <div className="flex justify-between text-sm">
+            <div className="flex justify-between">
               <span className="text-muted-foreground">Items:</span>
               <span className="font-medium">{order.items.length} items</span>
             </div>
-            <div className="flex justify-between text-sm">
+            <div className="flex justify-between">
               <span className="text-muted-foreground">Total Amount:</span>
               <span className="font-medium">
                 {order.totalAmount.toFixed(2)} DA
@@ -199,21 +181,14 @@ const handleAssign = async () => {
           >
             Cancel
           </Button>
-          <Button
-            type="button"
-            onClick={handleAssign}
-            disabled={isLoading || !selectedStaffId || isFetchingStaff}
-            className="rounded-full px-6"
-          >
-            {isLoading ? (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                Assigning...
-              </>
-            ) : (
-              "Assign Order"
-            )}
-          </Button>
+            <Button
+              type="button"
+              onClick={handleAssign}
+              disabled={isLoading || !selectedStaffId || isFetchingStaff}
+              className="rounded-full px-6"
+            >
+              {isLoading ? "Assigning..." : "Assign"}
+            </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

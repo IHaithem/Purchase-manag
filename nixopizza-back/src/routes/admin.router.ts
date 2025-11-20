@@ -15,12 +15,9 @@ adminRouter.use(authenticate);
 adminRouter.use(requireAdmin);
 
 adminRouter.get("/staffs", getAllStaff);
-adminRouter.post("/staffs", upload("staffs").single("image"), newStaffMember);
-adminRouter.put(
-  "/staffs/:staffId",
-  upload("staffs").single("image"),
-  updateStaff
-);
+adminRouter.post("/staffs", upload().single("image"), newStaffMember);
+adminRouter.put("/staffs/:staffId", upload().single("image"), updateStaff);
+
 adminRouter.get("/analytics/category", getCategoryAnalytics);
 adminRouter.get("/analytics/monthly", getMonthlySpendingAnalytics);
 

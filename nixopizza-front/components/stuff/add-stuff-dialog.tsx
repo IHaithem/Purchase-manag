@@ -1,44 +1,32 @@
 "use client";
-
-import type React from "react";
 import { useState, useRef } from "react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Plus, Upload, User } from "lucide-react";
-import { createStuff } from "@/lib/apis/stuff";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Plus } from "lucide-react";
 import toast from "react-hot-toast";
-import { IUser } from "@/store/user.store";
+import { createStuff } from "@/lib/apis/stuff";
 
-export function AddStuffDialog({
-  addNewStuff,
-}: {
-  addNewStuff: (newStuff: IUser) => void;
-}) {
+interface AddStuffDialogProps {
+  addNewStuff: (s: any) => void;
+}
+
+export function AddStuffDialog({ addNewStuff }: AddStuffDialogProps) {
   const [open, setOpen] = useState(false);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const [formData, setFormData] = useState({
     fullname: "",
-    contactPerson: "",
     email: "",
     password: "",
     phone1: "",
@@ -47,42 +35,43 @@ export function AddStuffDialog({
     address: "",
     status: "Active",
     notes: "",
-    avatar: "" as string | File, // Will hold File object during upload
+    avatar: "" as string | File,
   });
 
-  const handleInputChange = (field: string, value: string) => {
-    setFormData((prev) => ({
-      ...prev,
-      [field]: value,
-    }));
-  };
+  const handleInputChange = (field: string, value: string) =>
+    setFormData((prev) => ({ ...prev, [field]: value }));
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      // Preview
       const reader = new FileReader();
-      reader.onloadend = () => {
-        setAvatarPreview(reader.result as string);
-      };
+      reader.onloadend = () => setAvatarPreview(reader.result as string);
       reader.readAsDataURL(file);
-
-      // Store file for upload
-      setFormData((prev) => ({
-        ...prev,
-        avatar: file,
-      }));
+      setFormData((prev) => ({ ...prev, avatar: file }));
     }
   };
 
-  const triggerFileInput = () => {
-    fileInputRef.current?.click();
+  const triggerFileInput = () => fileInputRef.current?.click();
+
+  const resetForm = () => {
+    setFormData({
+      fullname: "",
+      email: "",
+      password: "",
+      phone1: "",
+      phone2: "",
+      phone3: "",
+      address: "",
+      status: "Active",
+      notes: "",
+      avatar: "",
+    });
+    setAvatarPreview(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
   const handleCreateStuff = async () => {
     const payload = new FormData();
-
-    // Add text fields
     payload.append("fullname", formData.fullname);
     payload.append("email", formData.email);
     payload.append("password", formData.password);
@@ -92,10 +81,8 @@ export function AddStuffDialog({
     if (formData.address) payload.append("address", formData.address);
     payload.append("status", formData.status);
     if (formData.notes) payload.append("notes", formData.notes);
-
-    // Add avatar file (if exists)
     if (formData.avatar instanceof File) {
-      payload.append("image", formData.avatar); // ← "image" matches backend
+      payload.append("image", formData.avatar); // backend expects "image"
     }
 
     const data = await createStuff(payload);
@@ -107,22 +94,6 @@ export function AddStuffDialog({
     } else {
       toast.error(data.message);
     }
-  };
-
-  const resetForm = () => {
-    setFormData({
-      fullname: "",
-      contactPerson: "",
-      email: "",
-      password: "",
-      phone: "",
-      address: "",
-      status: "Active",
-      notes: "",
-      avatar: "",
-    });
-    setAvatarPreview(null);
-    if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
   return (
@@ -150,7 +121,6 @@ export function AddStuffDialog({
         </DialogHeader>
 
         <div className="space-y-6 py-4">
-          {/* Avatar Upload */}
           <div className="space-y-2">
             <Label>Profile Picture</Label>
             <div
@@ -161,160 +131,110 @@ export function AddStuffDialog({
                 <img
                   src={avatarPreview}
                   alt="Avatar preview"
-                  className="w-20 h-20 rounded-full object-cover border-2 border-background shadow-sm"
+                  className="w-24 h-24 rounded-full object-cover shadow"
                 />
               ) : (
-                <>
-                  <div className="p-3 bg-primary/10 rounded-full">
-                    <Upload className="h-6 w-6 text-primary" />
-                  </div>
-                  <div className="text-center">
-                    <p className="text-sm font-medium">Click to upload</p>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      PNG, JPG up to 5MB
-                    </p>
-                  </div>
-                </>
+                <span className="text-xs text-muted-foreground">
+                  Click to upload
+                </span>
               )}
+              <Input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handleFileChange}
+              />
             </div>
-            <input
-              type="file"
-              ref={fileInputRef}
-              onChange={handleFileChange}
-              accept="image/*"
-              className="hidden"
-            />
           </div>
 
-          {/* Full Name */}
-          <div className="space-y-2">
-            <Label htmlFor="fullname">Full Name *</Label>
-            <Input
-              id="fullname"
-              value={formData.fullname}
-              onChange={(e) => handleInputChange("fullname", e.target.value)}
-              placeholder="Enter full name"
-              required
-            />
-          </div>
-
-          {/* Email & Password */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="email">Email *</Label>
+              <Label>Full Name *</Label>
               <Input
-                id="email"
+                value={formData.fullname}
+                onChange={(e) => handleInputChange("fullname", e.target.value)}
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Email *</Label>
+              <Input
                 type="email"
                 value={formData.email}
                 onChange={(e) => handleInputChange("email", e.target.value)}
-                placeholder="email@example.com"
                 required
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="password">Password *</Label>
+              <Label>Password *</Label>
               <Input
-                id="password"
                 type="password"
                 value={formData.password}
                 onChange={(e) => handleInputChange("password", e.target.value)}
-                placeholder="••••••••"
                 required
               />
             </div>
-          </div>
-
-          {/* Phone Numbers */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="phone1">Phone 1 (Optional)</Label>
+              <Label>Phone 1</Label>
               <Input
-                id="phone1"
                 value={formData.phone1}
                 onChange={(e) => handleInputChange("phone1", e.target.value)}
-                placeholder="+1 (555) 000-0000"
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="phone2">Phone 2 (Optional)</Label>
+              <Label>Phone 2</Label>
               <Input
-                id="phone2"
                 value={formData.phone2}
                 onChange={(e) => handleInputChange("phone2", e.target.value)}
-                placeholder="+1 (555) 000-0000"
               />
             </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="phone3">Phone 3 (Optional)</Label>
+              <Label>Phone 3</Label>
               <Input
-                id="phone3"
                 value={formData.phone3}
                 onChange={(e) => handleInputChange("phone3", e.target.value)}
-                placeholder="+1 (555) 000-0000"
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="address">Address (Optional)</Label>
+              <Label>Address</Label>
               <Input
-                id="address"
                 value={formData.address}
                 onChange={(e) => handleInputChange("address", e.target.value)}
-                placeholder="123 Main St, City"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Status</Label>
+              <Input
+                value={formData.status}
+                onChange={(e) => handleInputChange("status", e.target.value)}
               />
             </div>
           </div>
 
-          {/* Status & Notes */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="status">Status</Label>
-              <Select
-                value={formData.status}
-                onValueChange={(value) => handleInputChange("status", value)}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Active">Active</SelectItem>
-                  <SelectItem value="Inactive">Inactive</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+          <div className="space-y-2">
+            <Label>Notes</Label>
+            <Textarea
+              rows={3}
+              value={formData.notes}
+              onChange={(e) => handleInputChange("notes", e.target.value)}
+              placeholder="Optional notes"
+            />
+          </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="notes">Notes (Optional)</Label>
-              <Textarea
-                id="notes"
-                value={formData.notes}
-                onChange={(e) => handleInputChange("notes", e.target.value)}
-                placeholder="Additional information..."
-                className="min-h-[80px]"
-              />
-            </div>
+          <div className="flex justify-end gap-3">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button type="button" onClick={handleCreateStuff}>
+              Save
+            </Button>
           </div>
         </div>
-
-        <DialogFooter className="gap-2 sm:gap-0">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => setOpen(false)}
-          >
-            Cancel
-          </Button>
-          <Button
-            onClick={handleCreateStuff}
-            disabled={
-              !formData.fullname || !formData.email || !formData.password
-            }
-          >
-            Add Staff Member
-          </Button>
-        </DialogFooter>
       </DialogContent>
     </Dialog>
   );

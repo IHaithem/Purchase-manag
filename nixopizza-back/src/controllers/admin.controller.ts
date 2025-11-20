@@ -1,33 +1,39 @@
 import Order from "../models/order.model";
-import User from "../models/user.model";
 import { Request, Response } from "express";
+import User from "../models/user.model";
+import { deleteImage } from "../utils/Delete";
+import crypto from "crypto";
+import { uploadBufferToBlob } from "../utils/blob";
 
-export const getAllStaff = async (
-  req: Request,
-  res: Response
-): Promise<void> => {
+/** Helper to generate unique blob key */
+function buildBlobKey(originalName: string) {
+  const ext = (originalName.match(/\.[^/.]+$/) || [".bin"])[0];
+  const unique = crypto.randomBytes(8).toString("hex");
+  return `${Date.now()}-${unique}${ext}`;
+}
+
+/** GET /api/admin/staffs */
+export const getAllStaff = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { page = 1, limit = 10, name } = req.query;
-
-    // Build query filter
-    const query: any = { role: "staff" };
-
-    // Add name filter if provided
-    if (name) {
-      query.fullname = { $regex: name, $options: "i" };
+    const { name, page = 1, limit = 10 } = req.query;
+    if (Number(page) < 1 || Number(limit) < 1) {
+      res.status(400).json({ message: "Page and limit must be greater than 0" });
+      return;
     }
 
-    // Calculate pagination
+    const query: any = {};
+    if (name) {
+      query.fullname = { $regex: name.toString(), $options: "i" };
+    }
+
     const skip = (Number(page) - 1) * Number(limit);
     const limitNum = Number(limit);
 
-    // Fetch staff with filters and pagination
     const staffs = await User.find(query)
       .skip(skip)
       .limit(limitNum)
-      .sort({ createdAt: -1 }); // Sort by newest first
+      .sort({ createdAt: -1 });
 
-    // Get total count for pagination
     const total = await User.countDocuments(query);
     const pages = Math.ceil(total / limitNum);
 
@@ -44,6 +50,8 @@ export const getAllStaff = async (
       .json({ message: "Internal server error", error: error.message });
   }
 };
+
+/** POST /api/admin/staffs */
 export const newStaffMember = async (
   req: Request,
   res: Response
@@ -51,10 +59,16 @@ export const newStaffMember = async (
   try {
     const { fullname, email, password, phone1, phone2, phone3, address } = req.body;
     if (!fullname || !email || !password) {
-      res.status(400).json({ message: "All Fileds must be fill" });
+      res.status(400).json({ message: "All fields must be filled" });
       return;
     }
-    const filename = req.file?.filename;
+
+    // Unique email guard
+    const existing = await User.findOne({ email });
+    if (existing) {
+      res.status(409).json({ message: "Email already in use" });
+      return;
+    }
 
     const staff = new User({
       fullname,
@@ -66,15 +80,20 @@ export const newStaffMember = async (
       address,
     });
 
-    if (filename) {
-      const avatar = `/uploads/staffs/${filename}`;
-      staff.avatar = avatar;
+    if (req.file) {
+      const key = buildBlobKey(req.file.originalname);
+      const uploaded = await uploadBufferToBlob(
+        key,
+        req.file.buffer,
+        req.file.mimetype
+      );
+      staff.avatar = uploaded.url;
     }
 
     await staff.save();
 
-    res.status(200).json({
-      message: `Staff Created Successfully`,
+    res.status(201).json({
+      message: "Staff created successfully",
       staff,
     });
   } catch (error: any) {
@@ -84,53 +103,68 @@ export const newStaffMember = async (
   }
 };
 
+/** PUT /api/admin/staffs/:staffId */
 export const updateStaff = async (
   req: Request,
   res: Response
 ): Promise<void> => {
   try {
     const { staffId } = req.params;
-    const { fullname, email, phone1, phone2, phone3, address, status, notes } = req.body;
+    const {
+      fullname,
+      email,
+      phone1,
+      phone2,
+      phone3,
+      address,
+      status, // "Active" | "Inactive"
+      notes,  // (optional – not saved originally, but ignoring if present)
+    } = req.body;
 
-    // Validate required fields
-    if (!fullname || !email) {
-      res.status(400).json({
-        message: "Full name and email are required",
-      });
-      return;
-    }
-
-    // Find staff member
     const staff = await User.findById(staffId);
     if (!staff) {
       res.status(404).json({ message: "Staff not found" });
       return;
     }
 
-    // Check for email uniqueness (excluding current staff)
-    const existingEmail = await User.findOne({
-      email,
-      _id: { $ne: staffId },
-    });
-    if (existingEmail) {
-      res.status(409).json({
-        message: "Email already in use by another staff member",
-      });
+    if (!fullname || !email) {
+      res.status(400).json({ message: "Full name and email are required" });
       return;
     }
 
-    // Update fields
+    // Email uniqueness (exclude current)
+    const existingEmail = await User.findOne({ email, _id: { $ne: staffId } });
+    if (existingEmail) {
+      res
+        .status(409)
+        .json({ message: "Email already in use by another staff member" });
+      return;
+    }
+
     staff.fullname = fullname;
     staff.email = email;
     staff.phone1 = phone1;
     staff.phone2 = phone2;
     staff.phone3 = phone3;
     staff.address = address || "";
-    staff.isActive = status === "Active"; // Convert string to boolean
+    staff.isActive = status === "Active";
 
-    // Handle avatar update
     if (req.file) {
-      staff.avatar = `/uploads/staffs/${req.file.filename}`;
+      // Delete legacy local file only
+      if (staff.avatar && staff.avatar.startsWith("/uploads/")) {
+        try {
+          deleteImage(staff.avatar);
+        } catch (e) {
+          console.warn("Failed to delete legacy staff avatar:", e);
+        }
+      }
+      const key = buildBlobKey(req.file.originalname);
+      const uploaded = await uploadBufferToBlob(
+        key,
+        req.file.buffer,
+        req.file.mimetype
+      );
+      staff.avatar = uploaded.url;
     }
 
     await staff.save();

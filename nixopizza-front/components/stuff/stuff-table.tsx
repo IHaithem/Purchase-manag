@@ -1,9 +1,9 @@
-// components/stuff/stuff-table.tsx
-"use client";
-
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import {
   Table,
   TableBody,
@@ -12,29 +12,37 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Button } from "@/components/ui/button";
 import {
-  MoreHorizontal,
-  Edit,
-  Trash2,
-  User,
   CheckCircle,
-  XCircle,
   ClipboardList,
+  Edit,
+  MoreHorizontal,
+  User,
+  XCircle,
 } from "lucide-react";
-import { useRouter } from "next/navigation";
-import { Fragment, useEffect, useState } from "react";
-import { StuffEditDialog } from "./stuff-edit-dialog";
-import { AssignTaskDialog } from "./assign-task-dialog";
-import { deleteStuff, getStuff } from "@/lib/apis/stuff";
 import toast from "react-hot-toast";
+import { deleteStuff } from "@/lib/apis/stuff";
 import { IUser } from "@/store/user.store";
-import { Pagination } from "@/components/ui/pagination";
+import { useState } from "react";
+import { resolveImage } from "@/lib/resolveImage";
+
+interface StuffTableProps {
+  stuffs: IUser[];
+  setStuffs: React.Dispatch<React.SetStateAction<IUser[]>>;
+  totalPages: number;
+  currentPage: number;
+  setCurrentPage: React.Dispatch<React.SetStateAction<number>>; // FIXED: allow functional updates
+  limit: number;
+  setLimit: React.Dispatch<React.SetStateAction<number>>;        // FIXED: allow functional updates
+}
 
 export function StuffTable({
   stuffs,
@@ -44,25 +52,10 @@ export function StuffTable({
   setCurrentPage,
   limit,
   setLimit,
-}: {
-  stuffs: IUser[];
-  setStuffs: any;
-  totalPages: number;
-  currentPage: number;
-  setCurrentPage: any;
-  limit: number;
-  setLimit: any;
-}) {
-  const router = useRouter();
+}: StuffTableProps) {
   const [openEditDialog, setOpenEditDialog] = useState(false);
-  const [selectStuff, setSelectStuff] = useState<IUser | null>(null);
-  const [openAssignTaskDialog, setOpenAssignTaskDialog] = useState(false);
+  const [selectedStuff, setSelectedStuff] = useState<IUser | null>(null);
 
-  const handleAssignTask = (user: IUser) => {
-    setSelectStuff(user);
-    setOpenAssignTaskDialog(true);
-  };
-  // Logic to get the account status for the badge
   const getAccountStatus = (isActive: boolean) => {
     if (isActive) {
       return {
@@ -79,25 +72,25 @@ export function StuffTable({
   };
 
   const handleEdit = (user: IUser) => {
-    setSelectStuff(user);
+    setSelectedStuff(user);
     setOpenEditDialog(true);
   };
 
   const handleDelete = async (user: IUser) => {
     const data = await deleteStuff(user._id);
     if (data.success) {
-      toast.success("Stuff deleted successfully");
-      setStuffs(stuffs.filter((stuff) => stuff._id !== user._id));
+      toast.success("Staff deleted successfully");
+      setStuffs((prev) => prev.filter((s) => s._id !== user._id));
       setOpenEditDialog(false);
     } else {
-      toast.error(data.message || "Failed to delete stuff");
+      toast.error(data.message || "Failed to delete staff");
     }
   };
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="font-heading">Stuff Directory</CardTitle>
+        <CardTitle className="font-heading">Staff Directory</CardTitle>
       </CardHeader>
       <CardContent>
         <div className="rounded-md border">
@@ -113,7 +106,7 @@ export function StuffTable({
             </TableHeader>
             <TableBody>
               {stuffs.map((user) => {
-                const accountStatus = getAccountStatus(user?.isActive);
+                const accountStatus = getAccountStatus(user.isActive);
                 return (
                   <TableRow key={user._id}>
                     <TableCell>
@@ -121,14 +114,12 @@ export function StuffTable({
                         <div className="p-2 bg-muted rounded-lg">
                           {user.avatar ? (
                             <img
-                              src={
-                                process.env.NEXT_PUBLIC_BASE_URL + user.avatar
-                              }
-                              className="w-12 h-12 rounded-full"
+                              src={resolveImage(user.avatar)}
+                              className="w-12 h-12 rounded-full object-cover"
                               alt={user.fullname}
                             />
                           ) : (
-                            <User className="h-4 w-4" />
+                            <User className="h-5 w-5 text-muted-foreground" />
                           )}
                         </div>
                         <div>
@@ -159,7 +150,7 @@ export function StuffTable({
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
                           <DropdownMenuItem
-                            onClick={() => handleAssignTask(user)}
+                            onClick={() => toast("Assign task flow TBD")}
                           >
                             <ClipboardList className="h-4 w-4 mr-2" />
                             Assign Task
@@ -167,6 +158,13 @@ export function StuffTable({
                           <DropdownMenuItem onClick={() => handleEdit(user)}>
                             <Edit className="h-4 w-4 mr-2" />
                             Edit
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() => handleDelete(user)}
+                            className="text-destructive focus:text-destructive"
+                          >
+                            <XCircle className="h-4 w-4 mr-2" />
+                            Delete
                           </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
@@ -180,28 +178,49 @@ export function StuffTable({
 
         {/* Pagination */}
         <div className="mt-6 flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div className="text-sm text-muted-foreground">
-            Showing {stuffs.length} of {totalPages * limit} staff members
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-muted-foreground">Rows per page:</span>
+            <select
+              className="border rounded-md px-2 py-1 text-sm"
+              value={limit}
+              onChange={(e) => {
+                const newLimit = Number(e.target.value);
+                setLimit(newLimit);
+                setCurrentPage(1);
+              }}
+            >
+              {[5, 10, 20, 50].map((n) => (
+                <option key={n} value={n}>
+                  {n}
+                </option>
+              ))}
+            </select>
           </div>
-          <Pagination
-            currentPage={currentPage}
-            totalPages={totalPages}
-            onPageChange={setCurrentPage}
-            limit={limit}
-            onLimitChange={setLimit}
-          />
+          <div className="flex items-center gap-3">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={currentPage === 1}
+              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))} // functional update OK
+            >
+              Prev
+            </Button>
+            <span className="text-sm">
+              Page {currentPage} of {totalPages}
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={currentPage === totalPages}
+              onClick={() =>
+                setCurrentPage((p) => (p < totalPages ? p + 1 : p))
+              }
+            >
+              Next
+            </Button>
+          </div>
         </div>
       </CardContent>
-      <AssignTaskDialog
-        stuff={selectStuff}
-        open={openAssignTaskDialog}
-        onOpenChange={() => setOpenAssignTaskDialog(false)}
-      />
-      <StuffEditDialog
-        stuff={selectStuff}
-        open={openEditDialog}
-        onOpenChange={() => setOpenEditDialog(false)}
-      />
     </Card>
   );
 }
