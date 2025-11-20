@@ -27,7 +27,11 @@ const supplierSchema = new Schema<ISupplier>(
       required: false,
       trim: true,
       lowercase: true,
-      match: [/^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,})+$/, "Please fill a valid email address"],
+      // NO uniqueness, NO index. Validation only if provided.
+      match: [
+        /^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,})+$/,
+        "Please fill a valid email address",
+      ],
       set: (v: string) => (v && v.trim() !== "" ? v.trim().toLowerCase() : undefined),
     },
     phone1: { type: String, required: [true, "Phone Number Is Required"], trim: true },
@@ -43,8 +47,6 @@ const supplierSchema = new Schema<ISupplier>(
   { timestamps: true }
 );
 
-// Sparse unique index for optional email
-supplierSchema.index({ email: 1 }, { unique: true, sparse: true });
 
 const Supplier = model<ISupplier>("Supplier", supplierSchema);
 export default Supplier;

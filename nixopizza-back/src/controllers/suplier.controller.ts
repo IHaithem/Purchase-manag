@@ -3,26 +3,25 @@ import Supplier from "../models/supplier.model";
 import crypto from "crypto";
 import { uploadBufferToBlob } from "../utils/blob";
 import { deleteImage } from "../utils/Delete";
-import { Types } from "mongoose";
 
 /**
- * Normalize email field: treat empty string as undefined
+ * Normalize email: empty -> undefined
  */
 const normalizeEmail = (value: any): string | undefined => {
   if (!value) return undefined;
-  const trimmed = String(value).trim();
-  return trimmed === "" ? undefined : trimmed.toLowerCase();
+  const t = String(value).trim();
+  return t === "" ? undefined : t.toLowerCase();
 };
 
 /**
  * GET /api/suppliers
  */
-export const getSuppliers = async (req: Request, res: Response): Promise<void> => {
+export const getSuppliers = async (_req: Request, res: Response): Promise<void> => {
   try {
     const suppliers = await Supplier.find().sort({ createdAt: -1 });
     res.status(200).json({ suppliers });
-  } catch (error: any) {
-    res.status(500).json({ message: "Internal server error", error: error.message });
+  } catch (e: any) {
+    res.status(500).json({ message: "Internal server error", error: e.message });
   }
 };
 
@@ -37,14 +36,14 @@ export const getSupplierById = async (req: Request, res: Response): Promise<void
       return;
     }
     res.status(200).json({ supplier });
-  } catch (error: any) {
-    res.status(500).json({ message: "Internal server error", error: error.message });
+  } catch (e: any) {
+    res.status(500).json({ message: "Internal server error", error: e.message });
   }
 };
 
 /**
  * POST /api/suppliers
- * Email optional. Image optional.
+ * Email optional, duplicates allowed.
  */
 export const createSupplier = async (req: Request, res: Response): Promise<void> => {
   try {
@@ -69,14 +68,6 @@ export const createSupplier = async (req: Request, res: Response): Promise<void>
 
     const normalizedEmail = normalizeEmail(email);
 
-    if (normalizedEmail) {
-      const existing = await Supplier.exists({ email: normalizedEmail });
-      if (existing) {
-        res.status(409).json({ message: "Email already in use" });
-        return;
-      }
-    }
-
     let imageUrl: string | undefined;
     if (req.file) {
       const ext = (req.file.originalname.match(/\.[^/.]+$/) || [".bin"])[0];
@@ -85,38 +76,31 @@ export const createSupplier = async (req: Request, res: Response): Promise<void>
       imageUrl = uploaded.url;
     }
 
-    try {
-      const supplier = await Supplier.create({
-        name,
-        contactPerson,
-        email: normalizedEmail,
-        phone1,
-        phone2: phone2 || undefined,
-        phone3: phone3 || undefined,
-        address,
-        city: city || undefined,
-        notes: notes || undefined,
-        isActive: isActive !== undefined ? isActive : true,
-        categoryIds: Array.isArray(categoryIds) ? categoryIds : [],
-        image: imageUrl,
-      });
+    const supplier = await Supplier.create({
+      name,
+      contactPerson,
+      email: normalizedEmail,
+      phone1,
+      phone2: phone2 || undefined,
+      phone3: phone3 || undefined,
+      address,
+      city: city || undefined,
+      notes: notes || undefined,
+      isActive: isActive !== undefined ? isActive : true,
+      categoryIds: Array.isArray(categoryIds) ? categoryIds : [],
+      image: imageUrl,
+    });
 
-      res.status(201).json({ message: "Supplier created successfully", supplier });
-    } catch (err: any) {
-      if (err.code === 11000 && err.keyPattern?.email) {
-        res.status(409).json({ message: "Email already in use" });
-        return;
-      }
-      throw err;
-    }
-  } catch (error: any) {
-    res.status(500).json({ message: "Internal server error", error: error.message });
+    res.status(201).json({ message: "Supplier created successfully", supplier });
+  } catch (e: any) {
+    // No uniqueness conflict expected now
+    res.status(500).json({ message: "Internal server error", error: e.message });
   }
 };
 
 /**
  * PUT /api/suppliers/:supplierId
- * Supports removing email (removeEmail flag or blank)
+ * Removing email (blank) sets it to undefined.
  */
 export const updateSupplier = async (req: Request, res: Response): Promise<void> => {
   try {
@@ -144,16 +128,9 @@ export const updateSupplier = async (req: Request, res: Response): Promise<void>
 
     const normalizedEmail = normalizeEmail(email);
 
-    // Handle email removal
     if (removeEmail === "true" || (!normalizedEmail && supplier.email)) {
       supplier.email = undefined;
-    } else if (normalizedEmail && normalizedEmail !== supplier.email) {
-      // Use exists to avoid full doc & fix TS unknown _id
-      const existing = await Supplier.exists({ email: normalizedEmail });
-      if (existing && existing._id.toString() !== supplierId) {
-        res.status(409).json({ message: "Email already in use" });
-        return;
-      }
+    } else if (normalizedEmail) {
       supplier.email = normalizedEmail;
     }
 
@@ -168,15 +145,17 @@ export const updateSupplier = async (req: Request, res: Response): Promise<void>
     if (isActive !== undefined) supplier.isActive = isActive === "true" || isActive === true;
 
     if (categoryIds !== undefined) {
-      supplier.categoryIds = Array.isArray(categoryIds) ? categoryIds : [categoryIds].filter(Boolean);
+      supplier.categoryIds = Array.isArray(categoryIds)
+        ? categoryIds
+        : [categoryIds].filter(Boolean);
     }
 
     if (req.file) {
       if (supplier.image && supplier.image.startsWith("/uploads/")) {
         try {
           deleteImage(supplier.image);
-        } catch (e) {
-          console.warn("Failed to delete legacy image:", e);
+        } catch (err) {
+          console.warn("Failed to delete legacy image:", err);
         }
       }
       const ext = (req.file.originalname.match(/\.[^/.]+$/) || [".bin"])[0];
@@ -185,18 +164,9 @@ export const updateSupplier = async (req: Request, res: Response): Promise<void>
       supplier.image = uploaded.url;
     }
 
-    try {
-      await supplier.save();
-    } catch (err: any) {
-      if (err.code === 11000 && err.keyPattern?.email) {
-        res.status(409).json({ message: "Email already in use" });
-        return;
-      }
-      throw err;
-    }
-
+    await supplier.save();
     res.status(200).json({ message: "Supplier updated successfully", supplier });
-  } catch (error: any) {
-    res.status(500).json({ message: "Internal server error", error: error.message });
+  } catch (e: any) {
+    res.status(500).json({ message: "Internal server error", error: e.message });
   }
 };
