@@ -40,7 +40,6 @@ export function StuffEditDialog({
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // ✅ Initialize with proper boolean value
   const [formData, setFormData] = useState({
     fullname: "",
     email: "",
@@ -48,12 +47,11 @@ export function StuffEditDialog({
     phone2: "",
     phone3: "",
     address: "",
-    isActive: true, // ✅ boolean, not Boolean constructor
+    isActive: true,
     notes: "",
     avatar: null as File | null,
   });
 
-  // Reset form when dialog opens or stuff changes
   useEffect(() => {
     if (open && stuff) {
       setFormData({
@@ -63,7 +61,7 @@ export function StuffEditDialog({
         phone2: stuff.phone2 || "",
         phone3: stuff.phone3 || "",
         address: stuff.address || "",
-        isActive: stuff.isActive, // ✅ boolean from backend
+        isActive: stuff.isActive,
         notes: "",
         avatar: null,
       });
@@ -83,7 +81,7 @@ export function StuffEditDialog({
     if (file) {
       const reader = new FileReader();
       reader.onloadend = () => {
-        setAvatarPreview(reader.result as string);
+        setAvatarPreview(reader.result as string); // data: or blob: URL retained
       };
       reader.readAsDataURL(file);
       setFormData((prev) => ({ ...prev, avatar: file }));
@@ -94,26 +92,33 @@ export function StuffEditDialog({
     fileInputRef.current?.click();
   };
 
+  // Safely resolve avatar preview for display
+  const displayAvatar = (src: string | null) => {
+    if (!src) return null;
+    if (
+      src.startsWith("http") ||
+      src.startsWith("data:") ||
+      src.startsWith("blob:")
+    ) {
+      return src;
+    }
+    // legacy server relative path (/uploads/...)
+    return `${process.env.NEXT_PUBLIC_BASE_URL}${src}`;
+  };
+
   const handleUpdate = async () => {
     if (!stuff?._id) return;
 
     try {
       const payload = new FormData();
-
-      // Add text fields
       payload.append("fullname", formData.fullname);
       payload.append("email", formData.email);
       if (formData.phone1) payload.append("phone1", formData.phone1);
       if (formData.phone2) payload.append("phone2", formData.phone2);
       if (formData.phone3) payload.append("phone3", formData.phone3);
       if (formData.address) payload.append("address", formData.address);
-
-      // ✅ Convert boolean to string for backend compatibility
       payload.append("status", formData.isActive ? "Active" : "Inactive");
-
       if (formData.notes) payload.append("notes", formData.notes);
-
-      // Add new avatar if selected
       if (formData.avatar instanceof File) {
         payload.append("image", formData.avatar);
       }
@@ -121,6 +126,10 @@ export function StuffEditDialog({
       const data = await updateStuff(stuff._id, payload);
       if (data.success) {
         toast.success("Staff updated successfully!");
+        // Update preview to new avatar if returned
+        if (data.stuff?.avatar) {
+          setAvatarPreview(data.stuff.avatar);
+        }
         onOpenChange(false);
       } else {
         toast.error(data.message || "Failed to update staff");
@@ -143,44 +152,40 @@ export function StuffEditDialog({
 
         <div className="space-y-6 py-4">
           {/* Avatar Upload */}
-          <div className="space-y-2">
-            <Label>Profile Picture</Label>
-            <div
-              onClick={triggerFileInput}
-              className="flex flex-col items-center justify-center gap-3 p-6 border-2 border-dashed border-muted-foreground/25 rounded-xl bg-muted/30 hover:bg-muted/50 transition-colors cursor-pointer"
-            >
-              {avatarPreview ? (
-                <img
-                  src={
-                    avatarPreview.startsWith("http")
-                      ? avatarPreview
-                      : `${process.env.NEXT_PUBLIC_BASE_URL}${avatarPreview}`
-                  }
-                  alt="Avatar preview"
-                  className="w-20 h-20 rounded-full object-cover border-2 border-background shadow-sm"
-                />
-              ) : (
-                <>
-                  <div className="p-3 bg-primary/10 rounded-full">
-                    <User className="h-6 w-6 text-primary" />
-                  </div>
-                  <div className="text-center">
-                    <p className="text-sm font-medium">Click to upload</p>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      PNG, JPG up to 5MB
-                    </p>
-                  </div>
-                </>
-              )}
+            <div className="space-y-2">
+              <Label>Profile Picture</Label>
+              <div
+                onClick={triggerFileInput}
+                className="flex flex-col items-center justify-center gap-3 p-6 border-2 border-dashed border-muted-foreground/25 rounded-xl bg-muted/30 hover:bg-muted/50 transition-colors cursor-pointer"
+              >
+                {avatarPreview ? (
+                  <img
+                    src={displayAvatar(avatarPreview) || ""}
+                    alt="Avatar preview"
+                    className="w-20 h-20 rounded-full object-cover border-2 border-background shadow-sm"
+                  />
+                ) : (
+                  <>
+                    <div className="p-3 bg-primary/10 rounded-full">
+                      <User className="h-6 w-6 text-primary" />
+                    </div>
+                    <div className="text-center">
+                      <p className="text-sm font-medium">Click to upload</p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        PNG, JPG up to 5MB
+                      </p>
+                    </div>
+                  </>
+                )}
+              </div>
+              <input
+                type="file"
+                ref={fileInputRef}
+                onChange={handleFileChange}
+                accept="image/*"
+                className="hidden"
+              />
             </div>
-            <input
-              type="file"
-              ref={fileInputRef}
-              onChange={handleFileChange}
-              accept="image/*"
-              className="hidden"
-            />
-          </div>
 
           {/* Full Name */}
           <div className="space-y-2">
