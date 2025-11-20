@@ -17,7 +17,6 @@ import {
   DollarSign,
   Package,
   Download,
-  Send,
   Mail,
   Phone,
   CheckCircle,
@@ -30,6 +29,7 @@ import { IOrder } from "@/app/dashboard/purchases/page";
 import { updateOrder } from "@/lib/apis/purchase-list";
 import toast from "react-hot-toast";
 import { useAuth } from "@/hooks/useAuth";
+import { resolveImage } from "@/lib/resolveImage";
 
 interface PurchaseOrderDialogProps {
   order: IOrder | null;
@@ -46,19 +46,23 @@ export function PurchaseOrderDialog({
 }: PurchaseOrderDialogProps) {
   if (!order) return null;
   const { user } = useAuth();
-  const [currentStep, setCurrentStep] = useState<number>(0);
+  const [currentStep] = useState<number>(0);
   const [billFile, setBillFile] = useState<File | null>(null);
   const [billPreview, setBillPreview] = useState<string | null>(null);
 
   const getStatusColor = (status: string) => {
     switch (status) {
       case "Draft":
+      case "not assigned":
         return "secondary";
       case "Sent":
+      case "assigned":
         return "default";
       case "Confirmed":
+      case "confirmed":
         return "default";
       case "Paid":
+      case "paid":
         return "default";
       default:
         return "secondary";
@@ -68,11 +72,13 @@ export function PurchaseOrderDialog({
   const handleBillUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      if (!file.type.match("image.*") && !file.type.match("application/pdf")) {
-        alert("Please select an image or PDF file");
+      if (
+        !file.type.match("image.*") &&
+        !file.type.match("application/pdf")
+      ) {
+        toast.error("Please select an image or PDF file");
         return;
       }
-
       setBillFile(file);
       setBillPreview(URL.createObjectURL(file));
     }
@@ -91,14 +97,12 @@ export function PurchaseOrderDialog({
     if (billFile) {
       formData.append("image", billFile);
     }
-    const {
-      success,
-      order: updatedOrder,
-      message,
-    } = await updateOrder(order?._id, formData);
+    const { success, order: updatedOrder, message } = await updateOrder(
+      order?._id,
+      formData
+    );
     if (success) {
       toast.success("Order confirmed successfully");
-      // Update the order in the parent component's state
       if (setPurchaseOrders && updatedOrder) {
         setPurchaseOrders((prevOrders: IOrder[]) =>
           prevOrders.map((ord) =>
@@ -113,15 +117,12 @@ export function PurchaseOrderDialog({
   };
 
   const handleConfirmPaid = async () => {
-    console.log("Confirming order as paid");
-    const {
-      success,
-      order: updatedOrder,
-      message,
-    } = await updateOrder(order?._id, { status: "paid" });
+    const { success, order: updatedOrder, message } = await updateOrder(
+      order?._id,
+      { status: "paid" }
+    );
     if (success) {
       toast.success("Order paid successfully");
-
       if (setPurchaseOrders && updatedOrder) {
         setPurchaseOrders((prevOrders: IOrder[]) =>
           prevOrders.map((ord) =>
@@ -133,7 +134,6 @@ export function PurchaseOrderDialog({
     } else {
       toast.error(message || "Failed to pay order");
     }
-    console.log("end Confirming order as paid");
   };
 
   return (
@@ -155,9 +155,7 @@ export function PurchaseOrderDialog({
               <Card>
                 <CardContent className="p-4">
                   <div className="text-sm text-muted-foreground">Order ID</div>
-                  <div className="font-mono font-medium">
-                    {order.orderNumber}
-                  </div>
+                  <div className="font-mono font-medium">{order.orderNumber}</div>
                 </CardContent>
               </Card>
               <Card>
@@ -202,15 +200,14 @@ export function PurchaseOrderDialog({
               <CardContent>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <div className="font-medium flex items-center gap-1">
-                      <img
-                        src={
-                          process.env.NEXT_PUBLIC_BASE_URL +
-                          order.supplierId?.image
-                        }
-                        alt={order.supplierId?.name}
-                        className="w-12 h-12 rounded-full"
-                      />
+                    <div className="font-medium flex items-center gap-2">
+                      {order.supplierId?.image && (
+                        <img
+                          src={resolveImage(order.supplierId.image)}
+                          alt={order.supplierId?.name}
+                          className="w-12 h-12 rounded-full object-cover"
+                        />
+                      )}
                       {order.supplierId?.name}
                     </div>
                     <div className="text-sm text-muted-foreground">
@@ -224,7 +221,9 @@ export function PurchaseOrderDialog({
                     </div>
                     <div className="flex items-center gap-2 text-sm">
                       <Phone className="h-3 w-3" />
-                      {order?.supplierId?.phone}
+                      {order?.supplierId?.phone1 ||
+                        order?.supplierId?.phone2 ||
+                        order?.supplierId?.phone3}
                     </div>
                     <div className="text-sm text-muted-foreground">
                       Contact: {order.supplierId?.contactPerson || "N/A"}
@@ -261,7 +260,7 @@ export function PurchaseOrderDialog({
                       </div>
                       <div className="text-right">
                         <div className="font-medium">
-                          {item.quantity} × {item.unitCost} DA =
+                          {item.quantity} × {item.unitCost} DA ={" "}
                           {(item.quantity * item.unitCost).toFixed(2)} DA
                         </div>
                       </div>
@@ -297,7 +296,7 @@ export function PurchaseOrderDialog({
                             <span className="text-red-500 font-medium">PDF</span>
                           ) : (
                             <img
-                              src={process.env.NEXT_PUBLIC_BASE_URL + order.bon}
+                              src={resolveImage(order.bon)}
                               alt="Bill preview"
                               className="w-16 h-16 object-cover rounded"
                             />
@@ -314,12 +313,9 @@ export function PurchaseOrderDialog({
                         <Button
                           variant="outline"
                           className="gap-2"
-                          onClick={() => {
-                            window.open(
-                              process.env.NEXT_PUBLIC_BASE_URL + order.bon,
-                              "_blank"
-                            );
-                          }}
+                          onClick={() =>
+                            window.open(resolveImage(order.bon), "_blank")
+                          }
                         >
                           <Download className="h-4 w-4" />
                           View Bill
@@ -384,6 +380,7 @@ export function PurchaseOrderDialog({
                 </CardContent>
               </Card>
             )}
+
             {/* Actions */}
             <div className="flex gap-2 justify-end">
               {order.status === "assigned" && (
@@ -414,7 +411,6 @@ export function PurchaseOrderDialog({
                   )}
                 </>
               )}
-              
 
               {order.status === "confirmed" && user?.role === "admin" && (
                 <Button
@@ -426,7 +422,6 @@ export function PurchaseOrderDialog({
                 </Button>
               )}
 
-
               {order.status === "paid" && (
                 <Button variant="outline" disabled>
                   <CheckCircle className="h-4 w-4" />
@@ -437,29 +432,7 @@ export function PurchaseOrderDialog({
           </div>
         ) : (
           <div>
-            {/* Actions */}
-            <div className="space-y-2">
-              <Label>Order bill</Label>
-              <Input type="file" />
-            </div>
-            <div className="flex gap-2 justify-end">
-              <Button
-                onClick={() => {
-                  setCurrentStep(0);
-                }}
-              >
-                Cancel
-              </Button>
-              <Button
-                className="gap-2 bg-green-600 text-white hover:bg-green-700"
-                onClick={() => {
-                  setCurrentStep(1);
-                }}
-              >
-                <CheckCircle className="h-4 w-4" />
-                Done
-              </Button>
-            </div>
+            {/* Step content placeholder if steps added later */}
           </div>
         )}
       </DialogContent>
