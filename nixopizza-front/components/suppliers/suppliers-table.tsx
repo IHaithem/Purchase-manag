@@ -143,11 +143,9 @@ export function SuppliersTable({
                       <div className="flex items-center gap-3">
                         <div className="p-2 bg-muted rounded-lg">
                           <img
-                            src={
-                              resolveImage(supplier.image)
-                            }
-                            alt={supplier.name}
-                            className="w-12 h-12 rounded-full"
+                              src={resolveImage(supplier.image)}
+                              alt={supplier.name}
+                              className="w-12 h-12 rounded-full object-cover"
                           />
                         </div>
                         <div>

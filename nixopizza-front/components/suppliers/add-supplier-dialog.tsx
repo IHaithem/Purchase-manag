@@ -30,7 +30,6 @@ import { create_supplier } from "@/lib/apis/suppliers";
 import toast from "react-hot-toast";
 import { CategorySelect } from "../ui/category-select";
 import { ICategory } from "@/app/dashboard/categories/page";
-import { resolveImage } from "@/lib/resolveImage";
 
 export function AddSupplierDialog({
   onAdding,
@@ -56,7 +55,6 @@ export function AddSupplierDialog({
         console.error("Error fetching categories:", error);
       }
     };
-
     fetchCategories();
   }, []);
 
@@ -77,7 +75,6 @@ export function AddSupplierDialog({
   const handleSubmit = async (e?: React.MouseEvent) => {
     e?.preventDefault();
     setIsSubmitting(true);
-
     try {
       const supplierData = new FormData();
       supplierData.append("name", formData.name);
@@ -90,35 +87,23 @@ export function AddSupplierDialog({
       if (formData.city) supplierData.append("city", formData.city);
       supplierData.append("isActive", formData.isActive.toString());
       supplierData.append("notes", formData.notes);
-
-      formData.categoryIds.forEach((id) => {
-        supplierData.append("categoryIds", id);
-      });
-
-      if (image) {
-        supplierData.append("image", image);
-      }
+      formData.categoryIds.forEach((id) => supplierData.append("categoryIds", id));
+      if (image) supplierData.append("image", image);
 
       const { supplier } = await create_supplier(supplierData);
       onAdding(supplier);
       toast.success("Supplier Created Successfully");
-
       resetForm();
       setOpen(false);
-    } catch (error) {
-      console.error("Error creating supplier:", error);
+    } catch {
       toast.error("Failed to Add Supplier");
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const handleInputChange = (field: string, value: any) => {
-    setFormData((prev) => ({
-      ...prev,
-      [field]: value,
-    }));
-  };
+  const handleInputChange = (field: string, value: any) =>
+    setFormData((prev) => ({ ...prev, [field]: value }));
 
   const handleAddCategory = (category: ICategory | null) => {
     if (category && !formData.categoryIds.includes(category._id)) {
@@ -129,22 +114,21 @@ export function AddSupplierDialog({
     }
   };
 
-  const handleRemoveCategory = (index: number) => {
-    const updatedCategories = formData.categoryIds.filter((_, i) => i !== index);
+  const handleRemoveCategory = (index: number) =>
     setFormData((prev) => ({
       ...prev,
-      categoryIds: updatedCategories,
+      categoryIds: prev.categoryIds.filter((_, i) => i !== index),
     }));
-  };
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      if (!file.type.match("image.*")) {
+      if (!file.type.startsWith("image/")) {
         toast.error("Please select an image file");
         return;
       }
       setImage(file);
+      // Use object URL directly (do NOT prepend base URL)
       setImagePreview(URL.createObjectURL(file));
     }
   };
@@ -185,8 +169,7 @@ export function AddSupplierDialog({
     <Dialog open={open} onOpenChange={handleDialogChange}>
       <DialogTrigger asChild>
         <Button className="gap-2">
-          <Plus className="h-4 w-4" />
-          Add Supplier
+          <Plus className="h-4 w-4" /> Add Supplier
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
@@ -195,7 +178,7 @@ export function AddSupplierDialog({
             Add New Supplier
           </DialogTitle>
           <DialogDescription>
-            Add a new supplier to your directory with contact information and categories.
+            Add a new supplier with contact details and categories.
           </DialogDescription>
         </DialogHeader>
 
@@ -219,7 +202,9 @@ export function AddSupplierDialog({
               <Label>Contact Person *</Label>
               <Input
                 value={formData.contactPerson}
-                onChange={(e) => handleInputChange("contactPerson", e.target.value)}
+                onChange={(e) =>
+                  handleInputChange("contactPerson", e.target.value)
+                }
                 required
               />
             </div>
@@ -245,22 +230,22 @@ export function AddSupplierDialog({
             </div>
           </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-2">
-                <Label>Phone 2 (Optional)</Label>
-                <Input
-                  value={formData.phone2}
-                  onChange={(e) => handleInputChange("phone2", e.target.value)}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Phone 3 (Optional)</Label>
-                <Input
-                  value={formData.phone3}
-                  onChange={(e) => handleInputChange("phone3", e.target.value)}
-                />
-              </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="space-y-2">
+              <Label>Phone 2 (Optional)</Label>
+              <Input
+                value={formData.phone2}
+                onChange={(e) => handleInputChange("phone2", e.target.value)}
+              />
             </div>
+            <div className="space-y-2">
+              <Label>Phone 3 (Optional)</Label>
+              <Input
+                value={formData.phone3}
+                onChange={(e) => handleInputChange("phone3", e.target.value)}
+              />
+            </div>
+          </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-2">
@@ -287,7 +272,7 @@ export function AddSupplierDialog({
               {imagePreview ? (
                 <div className="relative w-24 h-24 rounded-xl overflow-hidden border">
                   <img
-                    src={resolveImage(imagePreview)}
+                    src={imagePreview}
                     alt="Preview"
                     className="object-cover w-full h-full"
                   />
@@ -304,7 +289,6 @@ export function AddSupplierDialog({
                   <Upload className="h-8 w-8 text-muted-foreground" />
                 </div>
               )}
-
               <div className="flex flex-col gap-2">
                 <Label
                   htmlFor="image-upload"
@@ -340,14 +324,14 @@ export function AddSupplierDialog({
             />
             {formData.categoryIds.length > 0 && (
               <div className="flex flex-wrap gap-2 mt-2">
-                {formData.categoryIds.map((categoryId, index) => {
-                  const category = categories.find((c) => c._id === categoryId);
+                {formData.categoryIds.map((id, idx) => {
+                  const cat = categories.find((c) => c._id === id);
                   return (
-                    <Badge key={categoryId} variant="outline" className="flex items-center gap-1">
-                      {category?.name || categoryId}
+                    <Badge key={id} variant="outline" className="flex items-center gap-1">
+                      {cat?.name || id}
                       <button
                         type="button"
-                        onClick={() => handleRemoveCategory(index)}
+                        onClick={() => handleRemoveCategory(idx)}
                         className="hover:bg-muted rounded-sm p-0.5"
                       >
                         <X className="h-3 w-3" />
