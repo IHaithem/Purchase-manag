@@ -19,6 +19,28 @@ const buildBlobKey = (originalName: string) => {
   return `${Date.now()}-${unique}${ext}`;
 };
 
+// Re-populate helper used before sending responses
+async function populateOrder(orderDoc: any) {
+  if (!orderDoc) return orderDoc;
+  return await orderDoc
+    .populate([
+      { path: "staffId", select: "avatar email fullname" },
+      {
+        path: "supplierId",
+        select:
+          "email name image contactPerson address phone1 phone2 phone3 city",
+      },
+      {
+        path: "items",
+        populate: {
+          path: "productId",
+          select: "name currentStock imageUrl barcode",
+        },
+      },
+    ])
+    .execPopulate?.(); // For older Mongoose versions; ignore if not needed
+}
+
 export const createOrder = async (
   req: Request,
   res: Response
@@ -53,10 +75,10 @@ export const createOrder = async (
 
         const productOrder = await ProductOrder.create({
           productId,
-            quantity,
-            unitCost,
-            expirationDate,
-            remainingQte: quantity,
+          quantity,
+          unitCost,
+          expirationDate,
+          remainingQte: quantity,
         });
         await productOrder.save();
         return productOrder._id;
@@ -91,10 +113,10 @@ export const createOrder = async (
     }
 
     await order.save();
-
+    const populated = await populateOrder(order);
     res.status(201).json({
       message: "Order created successfully",
-      order,
+      order: populated || order,
     });
   } catch (error: any) {
     res.status(500).json({
@@ -104,7 +126,6 @@ export const createOrder = async (
   }
 };
 
-// Assign order to staff
 export const assignOrder = async (
   req: Request,
   res: Response
@@ -134,7 +155,10 @@ export const assignOrder = async (
     (order as any).assignedDate = new Date();
 
     await order.save();
-    res.status(200).json({ message: "Order assigned successfully", order });
+    const populated = await populateOrder(order);
+    res
+      .status(200)
+      .json({ message: "Order assigned successfully", order: populated || order });
   } catch (error: any) {
     res.status(500).json({
       message: "Internal Server Error",
@@ -143,7 +167,6 @@ export const assignOrder = async (
   }
 };
 
-// Explicit confirm endpoint (preferred)
 export const confirmOrder = async (
   req: Request,
   res: Response
@@ -169,18 +192,15 @@ export const confirmOrder = async (
       return;
     }
 
-    // Require bill image
     if (!req.file) {
       res.status(400).json({ message: "Bill file is required for confirmation" });
       return;
     }
 
-    // Update total if supplied
     if (totalAmount) {
       order.totalAmount = parseFloat(totalAmount);
     }
 
-    // Update stock when confirming
     for (const itemId of order.items) {
       const productOrder: any = await ProductOrder.findById(itemId);
       if (productOrder) {
@@ -192,7 +212,6 @@ export const confirmOrder = async (
       }
     }
 
-    // Replace legacy bon if present
     if (order.bon && order.bon.startsWith("/uploads/orders/")) {
       try {
         deleteImage(order.bon);
@@ -212,7 +231,10 @@ export const confirmOrder = async (
     (order as any).confirmedDate = new Date();
 
     await order.save();
-    res.status(200).json({ message: "Order confirmed successfully", order });
+    const populated = await populateOrder(order);
+    res
+      .status(200)
+      .json({ message: "Order confirmed successfully", order: populated || order });
   } catch (error: any) {
     res.status(500).json({
       message: "Internal Server Error",
@@ -252,9 +274,7 @@ export const updateOrder = async (
       return;
     }
 
-    // Handle status transitions
     if (status === "confirmed" && order.status === "assigned") {
-      // If using update for confirmation, require file or existing bon
       if (!req.file && !order.bon) {
         res
           .status(400)
@@ -279,12 +299,10 @@ export const updateOrder = async (
         order.bon = uploaded.url;
       }
 
-      // Update total if provided
       if (totalAmount) {
         order.totalAmount = parseFloat(totalAmount);
       }
 
-      // Update stock
       for (const itemId of order.items) {
         const productOrder: any = await ProductOrder.findById(itemId);
         if (productOrder) {
@@ -305,18 +323,14 @@ export const updateOrder = async (
       order.status = "canceled";
       order.canceledDate = canceledDate ? new Date(canceledDate) : new Date();
     } else if (status && status !== order.status) {
-      // Other allowed direct transitions (avoid illegal jumps)
       order.status = status;
     }
 
-    // Update expected date if present
     if (expectedDate !== undefined) {
       order.expectedDate = expectedDate ? new Date(expectedDate) : undefined;
     }
 
-    // Replace / update bill if status not changing but file uploaded
     if (req.file && status !== "confirmed") {
-      // Generic bill replacement (e.g., reupload)
       if (order.bon && order.bon.startsWith("/uploads/orders/")) {
         try {
           deleteImage(order.bon);
@@ -333,8 +347,15 @@ export const updateOrder = async (
       order.bon = uploaded.url;
     }
 
+    if (totalAmount && status !== "confirmed") {
+      order.totalAmount = parseFloat(totalAmount);
+    }
+
     await order.save();
-    res.status(200).json({ message: "Order updated successfully", order });
+    const populated = await populateOrder(order);
+    res
+      .status(200)
+      .json({ message: "Order updated successfully", order: populated || order });
   } catch (error: any) {
     res.status(500).json({
       message: "Internal Server Error",
