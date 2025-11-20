@@ -33,14 +33,14 @@ import { IProduct } from "@/app/dashboard/products/page";
 import { ISupplier } from "@/app/dashboard/suppliers/page";
 import { IOrder } from "@/app/dashboard/purchases/page";
 import toast from "react-hot-toast";
+import { resolveImage } from "@/lib/resolveImage";
 
-// Types for real data
 interface IOrderItem {
   _id?: string;
   productId: string;
   quantity: number;
-  expirationDate: Date;
   unitCost: number;
+  expirationDate: Date;
   remainingQte?: number;
   isExpired?: boolean;
   expiredQuantity?: number;
@@ -65,19 +65,19 @@ export function ManualOrderDialog({
   const [billFile, setBillFile] = useState<File | null>(null);
   const [billPreview, setBillPreview] = useState<string | null>(null);
 
-  // Add state for products and selected products
+  // Products state
   const [products, setProducts] = useState<IProduct[]>([]);
   const [filteredProducts, setFilteredProducts] = useState<IProduct[]>([]);
-  const [selectedProducts, setSelectedProducts] = useState<(IProduct | null)[]>(
-    [null]
-  );
+  const [selectedProducts, setSelectedProducts] = useState<(IProduct | null)[]>([
+    null,
+  ]);
   const [isLoadingProducts, setIsLoadingProducts] = useState(true);
 
-  // Data fetching states
+  // Submission/Error state
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Fetch products when component mounts
+  // Fetch products on mount
   useEffect(() => {
     const fetchProducts = async () => {
       try {
@@ -92,44 +92,44 @@ export function ManualOrderDialog({
           console.error("Unexpected response format:", response);
           setProducts([]);
         }
-      } catch (error) {
-        console.error("Error fetching products:", error);
+      } catch (err) {
+        console.error("Error fetching products:", err);
         setProducts([]);
         setError("Failed to load products. Please refresh the page.");
       } finally {
         setIsLoadingProducts(false);
       }
     };
-
     fetchProducts();
   }, []);
 
-  // Filter products based on selected supplier's categories
+  // Filter products based on supplier categories
   useEffect(() => {
     if (selectedSupplier && selectedSupplier.categoryIds) {
       const filtered = products.filter((product) => {
-        // Handle both cases: categoryId as object or string
-        const productCategoryId = typeof product.categoryId === 'object' 
-          ? product.categoryId._id 
-          : product.categoryId;
+        const productCategoryId =
+          typeof product.categoryId === "object"
+            ? (product.categoryId as any)?._id
+            : (product as any).categoryId;
         return selectedSupplier.categoryIds.includes(productCategoryId);
       });
       setFilteredProducts(filtered);
-      
-      // Reset selected products when supplier changes
       setSelectedProducts(orderItems.map(() => null));
-      setOrderItems(orderItems.map(item => ({ ...item, productId: "" })));
+      setOrderItems((prev) =>
+        prev.map((item) => ({ ...item, productId: "" }))
+      );
     } else {
       setFilteredProducts([]);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedSupplier, products]);
 
   const addOrderItem = () => {
-    setOrderItems([
-      ...orderItems,
+    setOrderItems((items) => [
+      ...items,
       { productId: "", quantity: 1, unitCost: 0, expirationDate: new Date() },
     ]);
-    setSelectedProducts([...selectedProducts, null]);
+    setSelectedProducts((prev) => [...prev, null]);
   };
 
   const removeOrderItem = (index: number) => {
@@ -143,42 +143,38 @@ export function ManualOrderDialog({
     field: keyof IOrderItem,
     value: string | number | Date
   ) => {
-    const updated = [...orderItems];
-    updated[index] = { ...updated[index], [field]: value };
-    setOrderItems(updated);
+    setOrderItems((prev) => {
+      const updated = [...prev];
+      updated[index] = { ...updated[index], [field]: value };
+      return updated;
+    });
   };
 
-  const handleProductSelect = (index: number, product: IProduct | null) => {
-    // Update selected products array
-    const updatedSelectedProducts = [...selectedProducts];
-    updatedSelectedProducts[index] = product;
-    setSelectedProducts(updatedSelectedProducts);
-
-    // Update order item with product ID
-    if (product) {
-      updateOrderItem(index, "productId", product._id);
-    } else {
-      updateOrderItem(index, "productId", "");
-    }
-  };
+  // IMPORTANT FIX: ProductSelect expects 'onSelect', not 'onProductChange'
+    const handleProductSelect = (index: number, product: any | null) => {
+      const updatedSelectedProducts = [...selectedProducts];
+      // Cast the incoming product to IProduct | null to satisfy the selectedProducts state type
+      updatedSelectedProducts[index] = product as IProduct | null;
+      setSelectedProducts(updatedSelectedProducts);
+  
+      updateOrderItem(index, "productId", product ? (product as IProduct)._id : "");
+    };
 
   const handleSupplierChange = (supplier: ISupplier | null) => {
     setSelectedSupplier(supplier);
-    // Clear error when supplier is selected
-    if (supplier) {
-      setError(null);
-    }
+    if (supplier) setError(null);
   };
 
   const handleBillUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      // Validate file type
-      if (!file.type.match("image.*") && !file.type.match("application/pdf")) {
-        alert("Please select an image or PDF file");
+      if (
+        !file.type.match("image.*") &&
+        !file.type.match("application/pdf")
+      ) {
+        toast.error("Please select an image or PDF file");
         return;
       }
-
       setBillFile(file);
       setBillPreview(URL.createObjectURL(file));
     }
@@ -192,20 +188,15 @@ export function ManualOrderDialog({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Validation
     if (!selectedSupplier) {
       setError("Please select a supplier");
       return;
     }
-
     if (orderItems.length === 0) {
       setError("Please add at least one order item");
       return;
     }
-
-    // Check if all items have products selected
-    const hasEmptyProducts = orderItems.some((item) => !item.productId);
-    if (hasEmptyProducts) {
+    if (orderItems.some((item) => !item.productId)) {
       setError("Please select products for all order items");
       return;
     }
@@ -217,28 +208,22 @@ export function ManualOrderDialog({
       const dataToSend = new FormData();
       dataToSend.append("supplierId", selectedSupplier._id);
       dataToSend.append("notes", notes);
-      
-      // Add expected date if provided
+
       if (expectedDate) {
-        dataToSend.append("expectedDate", new Date(expectedDate).toISOString());
+        dataToSend.append(
+          "expectedDate",
+          new Date(expectedDate).toISOString()
+        );
       }
 
-      // Add bill if provided
       if (billFile) {
         dataToSend.append("image", billFile);
       }
 
-      // Add order items
       orderItems.forEach((item, index) => {
         dataToSend.append(`items[${index}][productId]`, item.productId);
-        dataToSend.append(
-          `items[${index}][quantity]`,
-          item.quantity.toString()
-        );
-        dataToSend.append(
-          `items[${index}][unitCost]`,
-          item.unitCost.toString()
-        );
+        dataToSend.append(`items[${index}][quantity]`, item.quantity.toString());
+        dataToSend.append(`items[${index}][unitCost]`, item.unitCost.toString());
         dataToSend.append(
           `items[${index}][expirationDate]`,
           new Date(item.expirationDate).toISOString()
@@ -247,18 +232,16 @@ export function ManualOrderDialog({
 
       const { success, message, order } = await createOrder(dataToSend);
       if (success) {
-        console.log("Order created successfully :", order);
         addNewOrder(order);
         toast.success("Order created successfully");
         resetForm();
         setOpen(false);
       } else {
         setError(message || "Failed to create order. Please try again.");
-        console.error("Error creating order:", message);
       }
-    } catch (error) {
+    } catch (err) {
+      console.error("Error creating order:", err);
       setError("An unexpected error occurred. Please try again.");
-      console.error("Error creating order:", error);
     } finally {
       setIsSubmitting(false);
     }
@@ -280,9 +263,7 @@ export function ManualOrderDialog({
 
   const handleDialogChange = (isOpen: boolean) => {
     setOpen(isOpen);
-    if (!isOpen) {
-      resetForm();
-    }
+    if (!isOpen) resetForm();
   };
 
   return (
@@ -320,30 +301,32 @@ export function ManualOrderDialog({
 
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Supplier Selection */}
-          <div className="space-y-2">
-            <Label htmlFor="supplier" className="text-sm font-medium">
-              Supplier *
-            </Label>
-            <SupplierSelect
-              selectedSupplier={selectedSupplier}
-              onSupplierChange={handleSupplierChange}
-              placeholder="Select a supplier"
-              className="border-2 border-input focus:ring-2 focus:ring-primary/30 rounded-lg"
-            />
-            {selectedSupplier && (
-              <div className="text-sm text-muted-foreground mt-2">
-                Contact: {selectedSupplier.phone1} • {selectedSupplier.email}
-              </div>
-            )}
-            {selectedSupplier && filteredProducts.length === 0 && (
-              <div className="bg-yellow-50 text-yellow-700 px-4 py-3 rounded-lg flex items-center gap-2 border border-yellow-200 mt-2">
-                <AlertCircle className="h-4 w-4" />
-                <span className="text-sm">
-                  No products available for this supplier's categories. Please select another supplier or add products to matching categories.
-                </span>
-              </div>
-            )}
-          </div>
+            <div className="space-y-2">
+              <Label htmlFor="supplier" className="text-sm font-medium">
+                Supplier *
+              </Label>
+              <SupplierSelect
+                selectedSupplier={selectedSupplier}
+                onSupplierChange={handleSupplierChange}
+                placeholder="Select a supplier"
+                className="border-2 border-input focus:ring-2 focus:ring-primary/30 rounded-lg"
+              />
+              {selectedSupplier && (
+                <div className="text-sm text-muted-foreground mt-2">
+                  Contact: {selectedSupplier.phone1} • {selectedSupplier.email}
+                </div>
+              )}
+              {selectedSupplier && filteredProducts.length === 0 && (
+                <div className="bg-yellow-50 text-yellow-700 px-4 py-3 rounded-lg flex items-center gap-2 border border-yellow-200 mt-2">
+                  <AlertCircle className="h-4 w-4" />
+                  <span className="text-sm">
+                    No products available for this supplier's categories. Please
+                    select another supplier or add products to matching
+                    categories.
+                  </span>
+                </div>
+              )}
+            </div>
 
           {/* Order Items */}
           <Card className="border-0 shadow-sm rounded-xl">
@@ -357,7 +340,11 @@ export function ManualOrderDialog({
                   variant="outline"
                   size="sm"
                   onClick={addOrderItem}
-                  disabled={!selectedSupplier || isLoadingProducts || filteredProducts.length === 0}
+                  disabled={
+                    !selectedSupplier ||
+                    isLoadingProducts ||
+                    filteredProducts.length === 0
+                  }
                   className="gap-2 rounded-full border-2 border-input"
                 >
                   <Plus className="h-4 w-4" />
@@ -368,165 +355,112 @@ export function ManualOrderDialog({
             <CardContent>
               {orderItems.length > 0 && (
                 <div className="space-y-4">
-                  {orderItems.map((item, index) => {
-                    return (
-                      <div
-                        key={index}
-                        className="flex flex-col sm:flex-row items-start sm:items-end gap-4 p-4 border rounded-xl bg-card"
-                      >
-                        <div className="flex-1 space-y-2">
-                          <Label className="text-sm font-medium">
-                            Product *
-                          </Label>
-                          <ProductSelect
-                            products={filteredProducts}
-                            selectedProduct={selectedProducts[index] || null}
-                            onProductChange={(product) =>
-                              handleProductSelect(index, product)
-                            }
-                            placeholder={
-                              selectedSupplier
-                                ? filteredProducts.length > 0
-                                  ? "Select product"
-                                  : "No products available"
-                                : "Select supplier first"
-                            }
-                            className="border-2 border-input focus:ring-2 focus:ring-primary/30 rounded-lg"
-                            disabled={!selectedSupplier || filteredProducts.length === 0}
-                          />
-                        </div>
-                        <div className="w-full sm:w-24 space-y-2">
-                          <Label className="text-sm font-medium">
-                            Quantity *
-                          </Label>
-                          <Input
-                            type="number"
-                            min="1"
-                            value={item.quantity}
-                            onChange={(e) =>
-                              updateOrderItem(
-                                index,
-                                "quantity",
-                                parseInt(e.target.value) || 1
-                              )
-                            }
-                            className="border-2 border-input focus:ring-2 focus:ring-primary/30 rounded-lg py-5"
-                          />
-                        </div>
-                        {/* <div className="w-full sm:w-28 space-y-2">
-                          <Label className="text-sm font-medium">
-                            Unit Price *
-                          </Label>
-                          <Input
-                            type="number"
-                            step="0.01"
-                            min="0"
-                            value={item.unitCost}
-                            onChange={(e) =>
-                              updateOrderItem(
-                                index,
-                                "unitCost",
-                                parseFloat(e.target.value) || 0
-                              )
-                            }
-                            className="border-2 border-input focus:ring-2 focus:ring-primary/30 rounded-lg py-5"
-                          />
-                        </div> */}
-                        <div className="w-full sm:w-28 space-y-2">
-                          <Label className="text-sm font-medium">
-                            Expiry Date *
-                          </Label>
-                          <Input
-                            type="date"
-                            value={
-                              item.expirationDate
-                                ? new Date(item.expirationDate)
-                                    .toISOString()
-                                    .split("T")[0]
-                                : ""
-                            }
-                            onChange={(e) =>
-                              updateOrderItem(
-                                index,
-                                "expirationDate",
-                                new Date(e.target.value)
-                              )
-                            }
-                            className="border-2 border-input focus:ring-2 focus:ring-primary/30 rounded-lg py-5"
-                          />
-                        </div>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="icon"
-                          onClick={() => removeOrderItem(index)}
-                          disabled={orderItems.length <= 1}
-                          className="text-destructive hover:text-destructive border-2 border-input w-10 h-10 rounded-full mt-4 sm:mt-0"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
+                  {orderItems.map((item, index) => (
+                    <div
+                      key={index}
+                      className="flex flex-col sm:flex-row items-start sm:items-end gap-4 p-4 border rounded-xl bg-card"
+                    >
+                      <div className="flex-1 space-y-2">
+                        <Label className="text-sm font-medium">Product *</Label>
+                        <ProductSelect
+                          products={filteredProducts}
+                          selectedProduct={selectedProducts[index] || null}
+                          onSelect={(product) =>
+                            handleProductSelect(index, product)
+                          }
+                          placeholder={
+                            selectedSupplier
+                              ? filteredProducts.length > 0
+                                ? "Select product"
+                                : "No products available"
+                              : "Select supplier first"
+                          }
+                          className="border-2 border-input focus:ring-2 focus:ring-primary/30 rounded-lg"
+                          disabled={
+                            !selectedSupplier || filteredProducts.length === 0
+                          }
+                        />
                       </div>
-                    );
-                  })}
+                      <div className="w-full sm:w-24 space-y-2">
+                        <Label className="text-sm font-medium">
+                          Quantity *
+                        </Label>
+                        <Input
+                          type="number"
+                          min="1"
+                          value={item.quantity}
+                          onChange={(e) =>
+                            updateOrderItem(
+                              index,
+                              "quantity",
+                              parseInt(e.target.value) || 1
+                            )
+                          }
+                          className="border-2 border-input focus:ring-2 focus:ring-primary/30 rounded-lg py-5"
+                        />
+                      </div>
+
+                      {/* OPTIONAL: Re-enable Unit Price so totalAmount is meaningful */}
+                      {/* <div className="w-full sm:w-28 space-y-2">
+                        <Label className="text-sm font-medium">Unit Price *</Label>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          value={item.unitCost}
+                          onChange={(e) =>
+                            updateOrderItem(
+                              index,
+                              "unitCost",
+                              parseFloat(e.target.value) || 0
+                            )
+                          }
+                          className="border-2 border-input focus:ring-2 focus:ring-primary/30 rounded-lg py-5"
+                        />
+                      </div> */}
+
+                      <div className="w-full sm:w-28 space-y-2">
+                        <Label className="text-sm font-medium">
+                          Expiry Date *
+                        </Label>
+                        <Input
+                          type="date"
+                          value={
+                            item.expirationDate
+                              ? new Date(item.expirationDate)
+                                  .toISOString()
+                                  .split("T")[0]
+                              : ""
+                          }
+                          onChange={(e) =>
+                            updateOrderItem(
+                              index,
+                              "expirationDate",
+                              new Date(e.target.value)
+                            )
+                          }
+                          className="border-2 border-input focus:ring-2 focus:ring-primary/30 rounded-lg py-5"
+                        />
+                      </div>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        onClick={() => removeOrderItem(index)}
+                        disabled={orderItems.length <= 1}
+                        className="text-destructive hover:text-destructive border-2 border-input w-10 h-10 rounded-full mt-4 sm:mt-0"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
                 </div>
               )}
             </CardContent>
           </Card>
 
-          {/* Bill Upload */}
-            {/* <div className="space-y-2">
-              <Label htmlFor="bill" className="text-sm font-medium">
-                Bill (Bon) (Optional)
-              </Label>
-              <div className="flex items-center gap-4">
-                {billPreview ? (
-                  <div className="relative w-24 h-24 rounded-xl overflow-hidden border-2 border-input shadow-sm">
-                    {billFile?.type === "application/pdf" ? (
-                      <div className="w-full h-full flex items-center justify-center bg-red-50">
-                        <span className="text-red-500 font-medium">PDF</span>
-                      </div>
-                    ) : (
-                      <img
-                        src={billPreview}
-                        alt="Bill preview"
-                        className="w-full h-full object-cover"
-                      />
-                    )}
-                    <button
-                      type="button"
-                      onClick={removeBill}
-                      className="absolute top-1 right-1 bg-destructive text-destructive-foreground rounded-full p-1 hover:opacity-80 shadow-sm"
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
-                  </div>
-                ) : (
-                  <div className="flex items-center justify-center w-24 h-24 border-2 border-dashed border-input rounded-xl bg-muted/20">
-                    <Upload className="h-8 w-8 text-muted-foreground" />
-                  </div>
-                )}
-
-                <div className="flex flex-col gap-2">
-                  <Label
-                    htmlFor="bill-upload"
-                    className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-md cursor-pointer hover:opacity-90 transition-opacity"
-                  >
-                    <Upload className="h-4 w-4" />
-                    {billPreview ? "Change Bill" : "Upload Bill"}
-                  </Label>
-                  <p className="text-xs text-muted-foreground">
-                    PNG, JPG, PDF up to 5MB
-                  </p>
-                  <Input
-                    id="bill-upload"
-                    type="file"
-                    accept="image/*,.pdf"
-                    onChange={handleBillUpload}
-                    className="hidden"
-                  />
-                </div>
-              </div>
-            </div> */}
+          {/* Bill Upload (currently commented out in original) */}
+          {/* You can re-enable if needed; now uses billPreview object URL directly */}
 
           {/* Expected Date */}
           <div className="space-y-2">

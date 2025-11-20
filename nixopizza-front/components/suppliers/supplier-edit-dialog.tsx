@@ -1,8 +1,6 @@
-// components/ui/supplier-edit-dialog.tsx
 "use client";
 
-import type React from "react";
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -30,12 +28,13 @@ import { CategorySelect } from "../ui/category-select";
 import { updateSupplier } from "@/lib/apis/suppliers";
 import toast from "react-hot-toast";
 import { ISupplier } from "@/app/dashboard/suppliers/page";
+import { resolveImage } from "@/lib/resolveImage";
 
 interface SupplierEditDialogProps {
   supplier: ISupplier | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  handleUpdateSupplier: any;
+  handleUpdateSupplier: (supplier: ISupplier) => void;
 }
 
 export function SupplierEditDialog({
@@ -80,7 +79,7 @@ export function SupplierEditDialog({
       setFormData({
         name: supplier.name,
         contactPerson: supplier.contactPerson,
-        email: supplier.email,
+        email: supplier.email || "",
         phone1: supplier.phone1,
         phone2: supplier.phone2 || "",
         phone3: supplier.phone3 || "",
@@ -91,18 +90,15 @@ export function SupplierEditDialog({
         categoryIds: supplier.categoryIds,
       });
 
-      // Set selected categories based on supplier's category IDs
       const supplierCategories = categories.filter((cat) =>
         supplier.categoryIds.includes(cat._id)
       );
       setSelectedCategories(supplierCategories);
 
-      // Set image preview if supplier has an image
       if (supplier.image) {
-        setImagePreview(process.env.NEXT_PUBLIC_BASE_URL + supplier.image);
+        setImagePreview(resolveImage(supplier.image));
       }
     } else {
-      // Reset form when no supplier is provided
       setFormData({
         name: "",
         contactPerson: "",
@@ -124,41 +120,42 @@ export function SupplierEditDialog({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!supplier) return;
 
     const supplierData = new FormData();
     supplierData.append("name", formData.name);
     supplierData.append("contactPerson", formData.contactPerson);
-    supplierData.append("email", formData.email);
+
+    if (formData.email.trim() !== "") {
+      supplierData.append("email", formData.email.trim());
+    } else if (supplier.email && formData.email.trim() === "") {
+      // user cleared existing email
+      supplierData.append("removeEmail", "true");
+    }
+
     supplierData.append("phone1", formData.phone1);
     if (formData.phone2) supplierData.append("phone2", formData.phone2);
     if (formData.phone3) supplierData.append("phone3", formData.phone3);
     supplierData.append("address", formData.address);
     if (formData.city) supplierData.append("city", formData.city);
-    supplierData.append("isActive", formData.isActive.toString()); // Convert to string
+    supplierData.append("isActive", formData.isActive.toString());
     supplierData.append("notes", formData.notes);
 
-    // Add categories
     formData.categoryIds.forEach((id) => {
       supplierData.append("categoryIds", id);
     });
 
-    // Add image if provided
-    if (image) {
-      supplierData.append("image", image);
-    }
+    if (image) supplierData.append("image", image);
 
-    // Handle form submission
-    console.log("Updating supplier:", supplierData);
-    const {
-      success,
-      message,
-      supplier: updatedSupplier,
-    } = await updateSupplier(supplier?._id || "", supplierData);
+    const { success, message, supplier: updatedSupplier } = await updateSupplier(
+      supplier._id,
+      supplierData
+    );
     if (success) {
       handleUpdateSupplier(updatedSupplier);
-      toast.success("Supplier Updated Successffully");
+      toast.success("Supplier Updated Successfully");
       setImage(null);
-      setImagePreview(null);
+      setImagePreview(resolveImage(updatedSupplier.image));
       onOpenChange(false);
     } else {
       toast.error(message);
@@ -182,19 +179,15 @@ export function SupplierEditDialog({
         ...prev,
         categoryIds: [...prev.categoryIds, category._id],
       }));
-
       setSelectedCategories((prev) => [...prev, category]);
     }
   };
 
   const handleRemoveCategory = (index: number) => {
-    const updatedCategoryIds = formData.categoryIds.filter(
-      (_, i) => i !== index
-    );
+    const updatedCategoryIds = formData.categoryIds.filter((_, i) => i !== index);
     const updatedSelectedCategories = selectedCategories.filter(
       (_, i) => i !== index
     );
-
     setFormData((prev) => ({
       ...prev,
       categoryIds: updatedCategoryIds,
@@ -205,12 +198,10 @@ export function SupplierEditDialog({
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      // Validate file type
       if (!file.type.match("image.*")) {
-        alert("Please select an image file");
+        toast.error("Please select an image file");
         return;
       }
-
       setImage(file);
       setImagePreview(URL.createObjectURL(file));
     }
@@ -221,7 +212,6 @@ export function SupplierEditDialog({
     setImagePreview(null);
   };
 
-  // Filter out already selected categories
   const availableCategories = categories.filter(
     (cat) => !formData.categoryIds.includes(cat._id)
   );
@@ -231,163 +221,120 @@ export function SupplierEditDialog({
       <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="font-heading text-2xl">
-            {supplier ? "Edit Supplier" : "Add New Supplier"}
+            {supplier ? "Edit Supplier" : "Add Supplier"}
           </DialogTitle>
           <DialogDescription>
             {supplier
               ? "Update supplier information and contact details."
-              : "Add a new supplier to your directory."}
+              : "Create a new supplier."}
           </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-2">
-              <Label htmlFor="name" className="text-sm font-medium">
-                Company Name
-              </Label>
+              <Label>Company Name *</Label>
               <Input
-                id="name"
                 value={formData.name}
                 onChange={(e) => handleInputChange("name", e.target.value)}
-                placeholder="Enter company name"
                 required
-                className="py-5 border-2 border-input focus-visible:ring-2 focus-visible:ring-primary/30 rounded-lg"
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="contactPerson" className="text-sm font-medium">
-                Contact Person
-              </Label>
+              <Label>Contact Person *</Label>
               <Input
-                id="contactPerson"
                 value={formData.contactPerson}
                 onChange={(e) =>
                   handleInputChange("contactPerson", e.target.value)
                 }
-                placeholder="Enter contact person name"
                 required
-                className="py-5 border-2 border-input focus-visible:ring-2 focus-visible:ring-primary/30 rounded-lg"
               />
             </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-2">
-              <Label htmlFor="email" className="text-sm font-medium">
-                Email
-              </Label>
+              <Label>Email (Optional)</Label>
               <Input
-                id="email"
                 type="email"
                 value={formData.email}
                 onChange={(e) => handleInputChange("email", e.target.value)}
-                placeholder="Enter email address"
-                required
-                className="py-5 border-2 border-input focus-visible:ring-2 focus-visible:ring-primary/30 rounded-lg"
+                placeholder="supplier@example.com"
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="phone1" className="text-sm font-medium">
-                Phone 1
-              </Label>
+              <Label>Phone 1 *</Label>
               <Input
-                id="phone1"
                 value={formData.phone1}
                 onChange={(e) => handleInputChange("phone1", e.target.value)}
-                placeholder="Enter primary phone number"
                 required
-                className="py-5 border-2 border-input focus-visible:ring-2 focus-visible:ring-primary/30 rounded-lg"
               />
             </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-2">
-              <Label htmlFor="phone2" className="text-sm font-medium">
-                Phone 2 (Optional)
-              </Label>
+              <Label>Phone 2 (Optional)</Label>
               <Input
-                id="phone2"
                 value={formData.phone2}
                 onChange={(e) => handleInputChange("phone2", e.target.value)}
-                placeholder="Enter secondary phone number"
-                className="py-5 border-2 border-input focus-visible:ring-2 focus-visible:ring-primary/30 rounded-lg"
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="phone3" className="text-sm font-medium">
-                Phone 3 (Optional)
-              </Label>
+              <Label>Phone 3 (Optional)</Label>
               <Input
-                id="phone3"
                 value={formData.phone3}
                 onChange={(e) => handleInputChange("phone3", e.target.value)}
-                placeholder="Enter tertiary phone number"
-                className="py-5 border-2 border-input focus-visible:ring-2 focus-visible:ring-primary/30 rounded-lg"
               />
             </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-2">
-              <Label htmlFor="address" className="text-sm font-medium">
-                Address
-              </Label>
+              <Label>Address *</Label>
               <Input
-                id="address"
                 value={formData.address}
                 onChange={(e) => handleInputChange("address", e.target.value)}
-                placeholder="Enter full address"
                 required
-                className="py-5 border-2 border-input focus-visible:ring-2 focus-visible:ring-primary/30 rounded-lg"
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="city" className="text-sm font-medium">
-                City (Optional)
-              </Label>
+              <Label>City (Optional)</Label>
               <Input
-                id="city"
                 value={formData.city}
                 onChange={(e) => handleInputChange("city", e.target.value)}
-                placeholder="Enter city"
-                className="py-5 border-2 border-input focus-visible:ring-2 focus-visible:ring-primary/30 rounded-lg"
               />
             </div>
           </div>
 
-          {/* Image Upload */}
           <div className="space-y-2">
-            <Label htmlFor="image" className="text-sm font-medium">
-              Supplier Image
-            </Label>
+            <Label>Supplier Image (Optional)</Label>
             <div className="flex items-center gap-4">
               {imagePreview ? (
-                <div className="relative w-24 h-24 rounded-xl overflow-hidden border-2 border-input shadow-sm">
+                <div className="relative w-24 h-24 rounded-xl overflow-hidden border">
                   <img
                     src={imagePreview}
                     alt="Supplier preview"
-                    className="w-full h-full object-cover"
+                    className="object-cover w-full h-full"
                   />
                   <button
                     type="button"
                     onClick={removeImage}
-                    className="absolute top-1 right-1 bg-destructive text-destructive-foreground rounded-full p-1 hover:opacity-80 shadow-sm"
+                    className="absolute top-1 right-1 bg-destructive text-destructive-foreground rounded-full p-1"
                   >
                     <X className="h-3 w-3" />
                   </button>
                 </div>
               ) : (
-                <div className="flex items-center justify-center w-24 h-24 border-2 border-dashed border-input rounded-xl bg-muted/20">
+                <div className="flex items-center justify-center w-24 h-24 border-2 border-dashed rounded-xl bg-muted/20">
                   <Upload className="h-8 w-8 text-muted-foreground" />
                 </div>
               )}
 
               <div className="flex flex-col gap-2">
                 <Label
-                  htmlFor="image-upload"
-                  className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-md cursor-pointer hover:opacity-90 transition-opacity"
+                  htmlFor="supplier-edit-image-upload"
+                  className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-md cursor-pointer hover:opacity-90"
                 >
                   <Upload className="h-4 w-4" />
                   {imagePreview ? "Change Image" : "Upload Image"}
@@ -396,7 +343,7 @@ export function SupplierEditDialog({
                   PNG, JPG up to 5MB
                 </p>
                 <Input
-                  id="image-upload"
+                  id="supplier-edit-image-upload"
                   type="file"
                   accept="image/*"
                   onChange={handleImageUpload}
@@ -406,69 +353,63 @@ export function SupplierEditDialog({
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="space-y-2">
-              <Label htmlFor="category" className="text-sm font-medium">
-                Categories
-              </Label>
-              <CategorySelect
-                categories={availableCategories}
-                selectedCategory={null}
-                onCategoryChange={handleAddCategory}
-                placeholder="Select categories"
-                className="border-2 border-input focus:ring-2 focus:ring-primary/30 rounded-lg"
-              />
-              {selectedCategories.length > 0 && (
-                <div className="flex flex-wrap gap-2 mt-2">
-                  {selectedCategories.map((category, index) => (
-                    <Badge
-                      className="py-1 pl-2 pr-1 relative rounded-md"
-                      variant="outline"
-                      key={category._id}
+          <div className="space-y-2">
+            <Label>Categories (Optional)</Label>
+            <CategorySelect
+              categories={availableCategories}
+              selectedCategory={null}
+              onSelect={(category: any) =>
+                handleAddCategory(category as ICategory | null)
+              }
+              placeholder="Select categories"
+              className="border rounded-lg"
+              isLoading={false}
+            />
+            {selectedCategories.length > 0 && (
+              <div className="flex flex-wrap gap-2 mt-2">
+                {selectedCategories.map((category, index) => (
+                  <Badge
+                    key={category._id}
+                    variant="outline"
+                    className="flex items-center gap-1"
+                  >
+                    {category.name}
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveCategory(index)}
+                      className="hover:bg-muted rounded-sm p-0.5"
                     >
-                      {category.name}
-                      <button
-                        type="button"
-                        className="ml-1 hover:bg-muted rounded-sm p-0.5"
-                        onClick={() => handleRemoveCategory(index)}
-                      >
-                        <X className="h-3 w-3" />
-                      </button>
-                    </Badge>
-                  ))}
-                </div>
-              )}
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="status" className="text-sm font-medium">
-                Status
-              </Label>
-              <Select
-                value={formData.isActive ? "Active" : "Inactive"}
-                onValueChange={handleStatusChange}
-              >
-                <SelectTrigger className="py-5 border-2 border-input focus:ring-2 focus:ring-primary/30 rounded-lg">
-                  <SelectValue placeholder="Select status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Active">Active</SelectItem>
-                  <SelectItem value="Inactive">Inactive</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+                      <X className="h-3 w-3" />
+                    </button>
+                  </Badge>
+                ))}
+              </div>
+            )}
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="notes" className="text-sm font-medium">
-              Notes (Optional)
-            </Label>
+            <Label>Status</Label>
+            <Select
+              value={formData.isActive ? "Active" : "Inactive"}
+              onValueChange={handleStatusChange}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="Active">Active</SelectItem>
+                <SelectItem value="Inactive">Inactive</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
+            <Label>Notes (Optional)</Label>
             <Textarea
-              id="notes"
               value={formData.notes}
               onChange={(e) => handleInputChange("notes", e.target.value)}
-              placeholder="Enter any additional notes"
               rows={3}
-              className="resize-y border-2 border-input focus-visible:ring-2 focus-visible:ring-primary/30 rounded-lg"
+              placeholder="Additional notes..."
             />
           </div>
 
@@ -477,11 +418,10 @@ export function SupplierEditDialog({
               type="button"
               variant="outline"
               onClick={() => onOpenChange(false)}
-              className="rounded-full px-4"
             >
               Cancel
             </Button>
-            <Button type="submit" className="rounded-full px-6">
+            <Button type="submit">
               {supplier ? "Update Supplier" : "Add Supplier"}
             </Button>
           </DialogFooter>

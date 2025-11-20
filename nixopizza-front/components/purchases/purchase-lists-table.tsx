@@ -21,13 +21,23 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { MoreHorizontal, Eye, Download, Receipt, Package, UserPlus, CheckCircle, DollarSign } from "lucide-react";
+import {
+  MoreHorizontal,
+  Eye,
+  Download,
+  Receipt,
+  Package,
+  UserPlus,
+  CheckCircle,
+  DollarSign,
+} from "lucide-react";
 import { PurchaseOrderDialog } from "@/components/purchases/purchase-order-dialog";
 import { ReceiptPreviewDialog } from "./receipt-preview-dialog";
 import { AssignStaffDialog } from "./assign-staff-dialog";
 import { ConfirmOrderDialog } from "./confirm-order-dialog";
 import { Pagination } from "@/components/ui/pagination";
 import { IOrder } from "@/app/dashboard/purchases/page";
+import { resolveImage } from "@/lib/resolveImage";
 
 export function PurchaseListsTable({
   purchaseOrders,
@@ -51,8 +61,7 @@ export function PurchaseListsTable({
   const [isReceiptDialogOpen, setIsReceiptDialogOpen] = useState(false);
   const [isAssignDialogOpen, setIsAssignDialogOpen] = useState(false);
   const [isConfirmDialogOpen, setIsConfirmDialogOpen] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-
+  const [isLoading] = useState(false);
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -91,18 +100,17 @@ export function PurchaseListsTable({
 
   const handleOrderUpdated = (updatedOrder: IOrder) => {
     setPurchaseOrders((prevOrders: IOrder[]) =>
-      prevOrders.map((order) =>
-        order._id === updatedOrder._id ? updatedOrder : order
+      prevOrders.map((ord) =>
+        ord._id === updatedOrder._id ? updatedOrder : ord
       )
     );
   };
 
   const handleExportOrder = (orderId: string) => {
+    // Placeholder for PDF export logic
     console.log("Exporting order:", orderId);
-    // Implement PDF export
   };
 
-  // Get action button based on order status
   const getStatusAction = (order: IOrder) => {
     switch (order.status) {
       case "not assigned":
@@ -198,7 +206,7 @@ export function PurchaseListsTable({
                       <div className="flex items-center gap-2">
                         {order?.bon ? (
                           <img
-                            src={process.env.NEXT_PUBLIC_BASE_URL + order?.bon}
+                            src={resolveImage(order.bon)}
                             alt={order?.orderNumber}
                             className="w-10 h-10 rounded-full object-cover"
                           />
@@ -207,7 +215,6 @@ export function PurchaseListsTable({
                             <Receipt className="h-4 w-4" />
                           </div>
                         )}
-
                         <span className="font-mono font-medium">
                           {order.orderNumber}
                         </span>
@@ -216,14 +223,13 @@ export function PurchaseListsTable({
                     <TableCell>
                       <div className="flex items-center gap-3">
                         <div className="font-medium flex items-center gap-2">
-                          <img
-                            src={
-                              process.env.NEXT_PUBLIC_BASE_URL +
-                              order.supplierId?.image
-                            }
-                            alt={order.supplierId?.name}
-                            className="w-10 h-10 rounded-full object-cover"
-                          />
+                          {order.supplierId?.image && (
+                            <img
+                              src={resolveImage(order.supplierId.image)}
+                              alt={order.supplierId?.name}
+                              className="w-10 h-10 rounded-full object-cover"
+                            />
+                          )}
                           {order.supplierId?.name}
                         </div>
                       </div>
@@ -231,14 +237,13 @@ export function PurchaseListsTable({
                     <TableCell>
                       {order.staffId ? (
                         <div className="flex items-center gap-2">
-                          <img
-                            src={
-                              process.env.NEXT_PUBLIC_BASE_URL +
-                              order.staffId?.avatar
-                            }
-                            alt={order.staffId?.fullname}
-                            className="w-8 h-8 rounded-full object-cover"
-                          />
+                          {order.staffId?.avatar && (
+                            <img
+                              src={resolveImage(order.staffId.avatar)}
+                              alt={order.staffId?.fullname}
+                              className="w-8 h-8 rounded-full object-cover"
+                            />
+                          )}
                           <span className="text-sm">
                             {order.staffId?.fullname}
                           </span>

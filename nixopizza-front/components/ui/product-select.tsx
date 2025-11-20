@@ -1,138 +1,81 @@
-// components/ui/product-select.tsx
-"use client";
-
-import * as React from "react";
-import { useState, useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
+import { X, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { Search, X } from "lucide-react";
-import { getProducts } from "@/lib/apis/products";
-import { IProduct } from "@/app/dashboard/products/page";
+import { resolveImage } from "@/lib/resolveImage";
 
-interface ProductSelectProps {
-  products?: IProduct[];
-  selectedProduct: IProduct | null;
-  onProductChange: (product: IProduct | null) => void;
+interface Product {
+  _id: string;
+  name: string;
+  imageUrl?: string;
+  barcode?: string;
+  currentStock: number;
+  minQty: number;
+}
+
+interface Props {
+  products: Product[];
+  selectedProduct: Product | null;
+  onSelect: (p: Product | null) => void;
   placeholder?: string;
   className?: string;
+  isLoading?: boolean;
   disabled?: boolean;
 }
 
 export function ProductSelect({
   products,
   selectedProduct,
-  onProductChange,
-  placeholder = "Select a product...",
+  onSelect,
+  placeholder = "Select product...",
   className,
+  isLoading = false,
   disabled = false,
-}: ProductSelectProps) {
+}: Props) {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
-  const [localProducts, setLocalProducts] = useState<IProduct[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const containerRef = useRef<HTMLDivElement>(null);
+  const [localProducts, setLocalProducts] = useState<Product[]>(products);
+  const containerRef = useRef<HTMLDivElement | null>(null);
 
-  // Synchronize provided products prop or fetch when missing
   useEffect(() => {
-    let isMounted = true;
-
-    const fetchProducts = async () => {
-      try {
-        if (!products) {
-          const response = await getProducts();
-          if (!isMounted) return;
-
-
-          if (response && Array.isArray(response.products)) {
-            setLocalProducts(response.products || []);
-          } else if (response && Array.isArray(response)) {
-
-            setLocalProducts(response);
-          } else {
-            console.error("Unexpected response format:", response);
-            setLocalProducts([]);
-          }
-        } else {
-          setLocalProducts(products);
-        }
-      } catch (err) {
-        console.error("Error fetching products:", err);
-        setLocalProducts([]);
-      } finally {
-        if (isMounted) setIsLoading(false);
-      }
-    };
-
-    setIsLoading(true);
-    fetchProducts();
-
-    return () => {
-      isMounted = false;
-    };
+    setLocalProducts(products);
   }, [products]);
 
-  // Close dropdown if clicking outside
   useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (
-        containerRef.current &&
-        !containerRef.current.contains(event.target as Node)
-      ) {
+    function handleClickOutside(e: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
         setIsOpen(false);
         setSearchTerm("");
       }
     }
-
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // Ensure dropdown closes when disabled toggles on
-  useEffect(() => {
-    if (disabled) {
-      setIsOpen(false);
-      setSearchTerm("");
-    }
-  }, [disabled]);
-
-  const handleSelect = (product: IProduct) => {
-    if (disabled) return;
-    onProductChange(product);
+  const handleSelect = (p: Product) => {
+    onSelect(p);
     setIsOpen(false);
     setSearchTerm("");
   };
 
-  const handleClear = () => {
-    if (disabled) return;
-    onProductChange(null);
+  const handleClear = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onSelect(null);
     setSearchTerm("");
   };
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (disabled) return;
-    const value = e.target.value;
-    setSearchTerm(value);
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) =>
+    setSearchTerm(e.target.value);
 
-    if (!isOpen) {
-      setIsOpen(true);
-    }
-  };
-
-  const handleInputClick = (e: React.MouseEvent) => {
-    if (disabled) return;
+  const handleInputClick = (e: React.MouseEvent<HTMLInputElement>) => {
     e.stopPropagation();
-    if (!isOpen) {
-      setIsOpen(true);
-    }
+    if (!disabled && !isOpen) setIsOpen(true);
   };
 
-  // Filter products based on search term
   const filteredProducts =
     searchTerm.trim() === ""
       ? localProducts
-      : localProducts.filter(
-          (product) =>
-            product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            product.barcode.toLowerCase().includes(searchTerm.toLowerCase())
+      : localProducts.filter((p) =>
+          p.name.toLowerCase().includes(searchTerm.toLowerCase())
         );
 
   if (isLoading) {
@@ -149,12 +92,7 @@ export function ProductSelect({
   }
 
   return (
-    <div
-      className={cn("relative", className)}
-      ref={containerRef}
-      aria-disabled={disabled || undefined}
-    >
-      {/* Searchable input display */}
+    <div className={cn("relative", className)} ref={containerRef}>
       <div
         className={cn(
           "flex items-center justify-between rounded-md border bg-background px-3 py-2 text-sm",
@@ -176,9 +114,7 @@ export function ProductSelect({
           <div className="flex items-center gap-2">
             {selectedProduct.imageUrl ? (
               <img
-                src={
-                  process.env.NEXT_PUBLIC_BASE_URL + selectedProduct.imageUrl
-                }
+                src={resolveImage(selectedProduct.imageUrl)}
                 alt={selectedProduct.name}
                 className="w-6 h-6 rounded-full object-cover"
               />
@@ -207,24 +143,23 @@ export function ProductSelect({
         )}
 
         <div className="flex items-center gap-1">
-          {selectedProduct && !searchTerm && (
-            <button
-              type="button"
-              onClick={handleClear}
-              className={cn(
-                "p-0.5 rounded-full hover:bg-muted",
-                disabled && "pointer-events-none opacity-50"
-              )}
-              disabled={disabled}
-            >
-              <X className="h-4 w-4" />
-            </button>
-          )}
-          <Search className="h-4 w-4 ml-1" />
+            {selectedProduct && !searchTerm && (
+              <button
+                type="button"
+                onClick={handleClear}
+                className={cn(
+                  "p-0.5 rounded-full hover:bg-muted",
+                  disabled && "pointer-events-none opacity-50"
+                )}
+                disabled={disabled}
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
+            <Search className="h-4 w-4 ml-1" />
         </div>
       </div>
 
-      {/* Dropdown content */}
       {isOpen && !disabled && (
         <div className="absolute z-50 mt-1 w-full rounded-md border bg-popover p-1 text-popover-foreground shadow-md">
           <div className="max-h-60 overflow-auto">
@@ -241,9 +176,7 @@ export function ProductSelect({
                 >
                   {product.imageUrl ? (
                     <img
-                      src={
-                        process.env.NEXT_PUBLIC_BASE_URL + product.imageUrl
-                      }
+                      src={resolveImage(product.imageUrl)}
                       alt={product.name}
                       className="w-8 h-8 rounded-full object-cover"
                     />

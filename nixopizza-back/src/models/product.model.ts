@@ -1,11 +1,11 @@
-import { Schema, model, Document, MongooseError } from "mongoose";
+import { Schema, model, Document } from "mongoose";
 
 export interface IProduct extends Document {
   name: string;
-  barcode: string;
-  unit: "liter" | "kilogram" | "box" | "piece" | "meter" | "pack"| "bottle";
+  barcode?: string;
+  unit: "liter" | "kilogram" | "box" | "piece" | "meter" | "pack" | "bottle";
   categoryId: Schema.Types.ObjectId;
-  imageUrl: string;
+  imageUrl?: string;              // optional blob/public URL
   description?: string;
   currentStock: number;
   minQty: number;
@@ -20,6 +20,7 @@ const productSchema = new Schema<IProduct>(
       type: String,
       required: [true, "Product Name Is Required"],
       trim: true,
+      unique: true,
     },
     barcode: {
       type: String,
@@ -27,7 +28,8 @@ const productSchema = new Schema<IProduct>(
     },
     unit: {
       type: String,
-      enum: ["liter", "kilogram", "box", "piece", "meter", "pack","bottle"],
+      enum: ["liter", "kilogram", "box", "piece", "meter", "pack", "bottle"],
+      required: [true, "Product Unit Is Required"],
     },
     categoryId: {
       type: Schema.Types.ObjectId,
@@ -36,7 +38,7 @@ const productSchema = new Schema<IProduct>(
     },
     imageUrl: {
       type: String,
-      required: [true, "Product Image Is Required"],
+      required: false, // was required true; now optional since we can allow creation first then image later
     },
     description: {
       type: String,

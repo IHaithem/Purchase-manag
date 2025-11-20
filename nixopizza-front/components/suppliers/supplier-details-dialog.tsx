@@ -1,6 +1,7 @@
 // components/suppliers/supplier-details-dialog.tsx
 "use client";
 
+import { resolveImage } from "@/lib/resolveImage";
 import {
   Dialog,
   DialogContent,
@@ -75,9 +76,9 @@ export function SupplierDetailsDialog({
               <div className="flex flex-col md:flex-row gap-6 items-start">
                 <div className="w-32 h-32 rounded-xl overflow-hidden border-2 border-input shadow-md flex-shrink-0">
                   <img
-                    src={process.env.NEXT_PUBLIC_BASE_URL + supplier.image}
-                    alt={supplier.name}
-                    className="w-full h-full object-cover"
+                      src={resolveImage(supplier.image)}
+                      alt={supplier.name}
+                      className="w-full h-full object-cover"
                   />
                 </div>
                 <div className="flex-1 space-y-3">
@@ -133,7 +134,7 @@ export function SupplierDetailsDialog({
                   <p className="text-sm text-muted-foreground">Phone</p>
                   <p className="font-medium flex items-center gap-2">
                     <Phone className="h-4 w-4 text-muted-foreground" />
-                    {supplier.phone}
+                    {supplier.phone1}
                   </p>
                 </div>
                 <div className="space-y-1">

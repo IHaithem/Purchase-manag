@@ -1,10 +1,15 @@
-// app/dashboard/products/[id]/edit/page.tsx
 "use client";
 
-import type React from "react";
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { DashboardLayout } from "@/components/layout/dashboard-layout";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -16,72 +21,133 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { ArrowLeft, Save, X, Upload } from "lucide-react";
-import { getProduct, updateProduct } from "@/lib/apis/products";
-import toast from "react-hot-toast";
-import { IProduct } from "../../page";
-import { ICategory } from "@/app/dashboard/categories/page";
 import { CategorySelect } from "@/components/ui/category-select";
+import {
+  ArrowLeft,
+  Save,
+  X,
+  Upload,
+  Package,
+} from "lucide-react";
+import toast from "react-hot-toast";
+import { getProduct, updateProduct } from "@/lib/apis/products";
+import { getCategories } from "@/lib/apis/categories";
+import { resolveImage } from "@/lib/resolveImage";
+
+interface ICategory {
+  _id: string;
+  name: string;
+  image: string;
+  description?: string;
+}
+
+interface IProduct {
+  _id: string;
+  name: string;
+  barcode?: string;
+  unit: string;
+  categoryId: ICategory;
+  imageUrl?: string;
+  description?: string;
+  currentStock: number;
+  minQty: number;
+  recommendedQty: number;
+}
 
 export default function EditProductPage() {
-  const [categories, setCategories] = useState<ICategory[]>([]);
-  const [selectedCategory, setSelectedCategory] = useState<ICategory | null>(
-    null
-  );
   const router = useRouter();
   const params = useParams();
   const productId = params?.id as string;
 
-  const [formData, setFormData] = useState<IProduct & { image?: File | null }>({
+  const [categories, setCategories] = useState<ICategory[]>([]);
+  const [selectedCategory, setSelectedCategory] = useState<ICategory | null>(null);
+
+  const [formData, setFormData] = useState<Omit<IProduct, "categoryId"> & { categoryId?: ICategory }>({
     _id: "",
     name: "",
+    barcode: "",
+    unit: "",
     imageUrl: "",
-    categoryId: {
-      _id: "",
-      name: "",
-      image: "",
-    },
+    description: "",
     currentStock: 0,
     minQty: 0,
     recommendedQty: 0,
-    barcode: "",
-    unit: "",
-    description: "",
-    image: null,
   });
 
+  // image state
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [imageFile, setImageFile] = useState<File | null>(null);
 
-  // Fetch product details by id
+  // Load categories first
   useEffect(() => {
-    const fetchProduct = async () => {
-      const { product, success, message } = await getProduct(productId);
+    const fetchCategories = async () => {
+      const { categories: data, success, message } = await getCategories();
       if (success) {
-        setFormData({ ...product, image: null });
-        setPreviewImage(process.env.NEXT_PUBLIC_BASE_URL + product.imageUrl);
-
-        // Find and set the selected category
-        const category = categories.find(
-          (cat) => cat._id === product.categoryId._id
-        );
-        if (category) {
-          setSelectedCategory(category);
-        }
+        setCategories(data || []);
       } else {
         toast.error(message);
       }
     };
+    fetchCategories();
+  }, []);
 
-    if (productId) fetchProduct();
-  }, [productId, categories]);
+  // Fetch product
+  useEffect(() => {
+    const fetchProduct = async () => {
+      if (!productId) return;
+      const { product, success, message } = await getProduct(productId);
+      if (!success) {
+        toast.error(message);
+        return;
+      }
+      setFormData({
+        _id: product._id,
+        name: product.name,
+        barcode: product.barcode,
+        unit: product.unit,
+        imageUrl: product.imageUrl,
+        description: product.description,
+        currentStock: product.currentStock,
+        minQty: product.minQty,
+        recommendedQty: product.recommendedQty,
+        categoryId: product.categoryId,
+      });
+      setPreviewImage(resolveImage(product.imageUrl));
+      // If categories already loaded, set selectedCategory now
+      setSelectedCategory(product.categoryId || null);
+    };
+    fetchProduct();
+  }, [productId]);
+
+  // When categories load after product, ensure selectedCategory is set
+  useEffect(() => {
+    if (formData.categoryId && categories.length > 0) {
+      const match = categories.find((c) => c._id === formData.categoryId?._id);
+      if (match) {
+        setSelectedCategory(match);
+      }
+    }
+  }, [categories, formData.categoryId]);
+
+  const handleInputChange = (field: string, value: string | number) => {
+    setFormData((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const handleImageChange = (file: File | null) => {
+    setImageFile(file);
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = () => setPreviewImage(reader.result as string);
+      reader.readAsDataURL(file);
+    } else {
+      setPreviewImage(resolveImage(formData.imageUrl));
+    }
+  };
+
+  const removeImage = () => {
+    setImageFile(null);
+    setPreviewImage(null);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -92,17 +158,17 @@ export default function EditProductPage() {
     }
 
     const form = new FormData();
-    Object.entries(formData).forEach(([key, value]) => {
-      if (value !== null && value !== undefined) {
-        if (key === "categoryId") {
-          form.append("categoryId", selectedCategory._id);
-        } else if (key === "image" && value instanceof File) {
-          form.append("image", value);
-        } else if (key !== "image") {
-          form.append(key, value as any);
-        }
-      }
-    });
+    form.append("name", formData.name);
+    if (formData.barcode) form.append("barcode", formData.barcode);
+    if (formData.unit) form.append("unit", formData.unit);
+    form.append("categoryId", selectedCategory._id);
+    if (formData.description) form.append("description", formData.description);
+    form.append("currentStock", String(formData.currentStock));
+    form.append("minQty", String(formData.minQty));
+    form.append("recommendedQty", String(formData.recommendedQty));
+    if (imageFile) {
+      form.append("image", imageFile);
+    }
 
     const { success, message } = await updateProduct(productId, form);
     if (success) {
@@ -110,28 +176,6 @@ export default function EditProductPage() {
       router.push("/dashboard/products");
     } else {
       toast.error(message);
-    }
-  };
-
-  const handleInputChange = (
-    field: string,
-    value: string | number | File | null
-  ) => {
-    setFormData((prev) => ({
-      ...prev,
-      [field]: value,
-    }));
-  };
-
-  const handleImageChange = (file: File | null) => {
-    setImageFile(file);
-    handleInputChange("image", file);
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = () => setPreviewImage(reader.result as string);
-      reader.readAsDataURL(file);
-    } else {
-      setPreviewImage(formData.imageUrl || null);
     }
   };
 
@@ -155,7 +199,7 @@ export default function EditProductPage() {
                 Edit Product
               </h1>
               <p className="text-gray-600 mt-1">
-                Update the details of your product
+                Update product details, category, and image.
               </p>
             </div>
           </div>
@@ -178,40 +222,110 @@ export default function EditProductPage() {
           </div>
         </div>
 
-        {/* Form */}
         <form onSubmit={handleSubmit} className="space-y-8">
-          {/* Basic Information */}
-          <Card className="border-0 shadow-lg rounded-xl">
-            <CardHeader className="pb-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-primary/10 rounded-lg">
-                  <Upload className="h-5 w-5 text-primary" />
+          {/* Basic Info */}
+            <Card className="border-0 shadow-lg rounded-xl">
+              <CardHeader className="pb-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-primary/10 rounded-lg">
+                    <Package className="h-5 w-5 text-primary" />
+                  </div>
+                  <div>
+                    <CardTitle className="font-heading text-xl">
+                      Basic Information
+                    </CardTitle>
+                    <CardDescription>
+                      Essential product details and identification
+                    </CardDescription>
+                  </div>
                 </div>
-                <div>
-                  <CardTitle className="font-heading text-xl">
-                    Basic Information
-                  </CardTitle>
-                  <CardDescription>
-                    Essential product details and identification
-                  </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6 pt-2">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <Label htmlFor="name" className="text-sm font-medium">
+                      Product Name *
+                    </Label>
+                    <Input
+                      id="name"
+                      value={formData.name}
+                      onChange={(e) => handleInputChange("name", e.target.value)}
+                      placeholder="Enter product name"
+                      required
+                      className="py-5 border-2 border-input focus-visible:ring-2 focus-visible:ring-primary/30 rounded-lg"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="barcode" className="text-sm font-medium">
+                      Barcode
+                    </Label>
+                    <Input
+                      id="barcode"
+                      value={formData.barcode || ""}
+                      onChange={(e) =>
+                        handleInputChange("barcode", e.target.value)
+                      }
+                      placeholder="Enter barcode"
+                      className="py-5 border-2 border-input focus-visible:ring-2 focus-visible:ring-primary/30 rounded-lg"
+                    />
+                  </div>
                 </div>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-6 pt-2">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <Label htmlFor="category" className="text-sm font-medium">
+                      Category *
+                    </Label>
+                    <CategorySelect
+                      categories={categories}
+                      selectedCategory={selectedCategory}
+                      onSelect={(c) => setSelectedCategory(c)}
+                      placeholder="Select a category"
+                      className="border-2 border-input focus:ring-2 focus:ring-primary/30 rounded-lg"
+                      isLoading={false}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="unit" className="text-sm font-medium">
+                      Unit *
+                    </Label>
+                    <Select
+                      value={formData.unit}
+                      onValueChange={(value) => handleInputChange("unit", value)}
+                    >
+                      <SelectTrigger className="py-5 border-2 border-input focus:ring-2 focus:ring-primary/30 rounded-lg">
+                        <SelectValue placeholder="Select unit" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="liter">Liter</SelectItem>
+                        <SelectItem value="kilogram">Kilogram</SelectItem>
+                        <SelectItem value="box">Box</SelectItem>
+                        <SelectItem value="piece">Piece</SelectItem>
+                        <SelectItem value="meter">Meter</SelectItem>
+                        <SelectItem value="pack">Pack</SelectItem>
+                        <SelectItem value="bottle">Bottle</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
                 <div className="space-y-2">
-                  <Label htmlFor="name" className="text-sm font-medium">
-                    Product Name *
+                  <Label htmlFor="description" className="text-sm font-medium">
+                    Description (Optional)
                   </Label>
-                  <Input
-                    id="name"
-                    value={formData.name}
-                    onChange={(e) => handleInputChange("name", e.target.value)}
-                    placeholder="Enter product name"
-                    required
-                    className="py-5 border-2 border-input focus-visible:ring-2 focus-visible:ring-primary/30 rounded-lg"
+                  <Textarea
+                    id="description"
+                    value={formData.description || ""}
+                    onChange={(e) =>
+                      handleInputChange("description", e.target.value)
+                    }
+                    placeholder="Enter product description"
+                    rows={3}
+                    className="resize-y border-2 border-input focus-visible:ring-2 focus-visible:ring-primary/30 rounded-lg"
                   />
                 </div>
+
+                {/* Image Upload */}
                 <div className="space-y-2">
                   <Label htmlFor="image" className="text-sm font-medium">
                     Product Image
@@ -221,12 +335,12 @@ export default function EditProductPage() {
                       <div className="relative w-24 h-24 rounded-xl overflow-hidden border-2 border-input shadow-sm">
                         <img
                           src={previewImage}
-                          alt="Preview"
+                          alt="Product preview"
                           className="w-full h-full object-cover"
                         />
                         <button
                           type="button"
-                          onClick={() => handleImageChange(null)}
+                          onClick={removeImage}
                           className="absolute top-1 right-1 bg-destructive text-destructive-foreground rounded-full p-1 hover:opacity-80 shadow-sm"
                         >
                           <X className="h-3 w-3" />
@@ -261,173 +375,82 @@ export default function EditProductPage() {
                     </div>
                   </div>
                 </div>
-              </div>
+              </CardContent>
+            </Card>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-2">
-                  <Label htmlFor="category" className="text-sm font-medium">
-                    Category *
-                  </Label>
-                  <CategorySelect
-                    selectedCategory={selectedCategory}
-                    onCategoryChange={setSelectedCategory}
-                    placeholder="Select a category"
-                    className="border-2 border-input focus:ring-2 focus:ring-primary/30 rounded-lg"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="barcode" className="text-sm font-medium">
-                    Barcode
-                  </Label>
-                  <Input
-                    id="barcode"
-                    value={formData.barcode}
-                    onChange={(e) =>
-                      handleInputChange("barcode", e.target.value)
-                    }
-                    placeholder="Enter barcode"
-                    className="py-5 border-2 border-input focus-visible:ring-2 focus-visible:ring-primary/30 rounded-lg"
-                  />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Pricing */}
+          {/* Inventory */}
           <Card className="border-0 shadow-lg rounded-xl">
             <CardHeader className="pb-4">
               <div className="flex items-center gap-3">
                 <div className="p-2 bg-primary/10 rounded-lg">
-                  <Upload className="h-5 w-5 text-primary" />
-                </div>
-                <div>
-                  <CardTitle className="font-heading text-xl">
-                    Pricing
-                  </CardTitle>
-                  <CardDescription>Unit details</CardDescription>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
-              <div className="space-y-2">
-                <Label htmlFor="unit" className="text-sm font-medium">
-                  Unit *
-                </Label>
-                <Select
-                  value={formData.unit}
-                  onValueChange={(value) => handleInputChange("unit", value)}
-                >
-                  <SelectTrigger className="py-5 border-2 border-input focus:ring-2 focus:ring-primary/30 rounded-lg">
-                    <SelectValue placeholder="Select unit" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="liter">Liter</SelectItem>
-                    <SelectItem value="kilogram">Kilogram</SelectItem>
-                    <SelectItem value="box">Box</SelectItem>
-                    <SelectItem value="piece">Piece</SelectItem>
-                    <SelectItem value="meter">Meter</SelectItem>
-                    <SelectItem value="pack">Pack</SelectItem>
-                    <SelectItem value="bottle">bottle</SelectItem>
-                    
-                  </SelectContent>
-                </Select>
-              </div>
-              
-              <div className="space-y-2 md:col-span-2">
-                <Label htmlFor="description" className="text-sm font-medium">
-                  Description (Optional)
-                </Label>
-                <Textarea
-                  id="description"
-                  value={formData.description || ""}
-                  onChange={(e) =>
-                    handleInputChange("description", e.target.value)
-                  }
-                  placeholder="Enter product description"
-                  rows={3}
-                  className="resize-y border-2 border-input focus-visible:ring-2 focus-visible:ring-primary/30 rounded-lg"
-                />
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Inventory Management */}
-          <Card className="border-0 shadow-lg rounded-xl">
-            <CardHeader className="pb-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-primary/10 rounded-lg">
-                  <Upload className="h-5 w-5 text-primary" />
+                  <Package className="h-5 w-5 text-primary" />
                 </div>
                 <div>
                   <CardTitle className="font-heading text-xl">
                     Inventory Management
                   </CardTitle>
                   <CardDescription>
-                    Stock levels and inventory tracking
+                    Adjust stock thresholds and current levels
                   </CardDescription>
                 </div>
               </div>
             </CardHeader>
-            <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-2">
-              <div className="space-y-2">
-                <Label htmlFor="stock" className="text-sm font-medium">
-                  Current Stock *
-                </Label>
-                <Input
-                  id="stock"
-                  type="number"
-                  value={formData.currentStock}
-                  onChange={(e) =>
-                    handleInputChange(
-                      "currentStock",
-                      Number.parseInt(e.target.value) || 0
-                    )
-                  }
-                  placeholder="0"
-                  min="0"
-                  required
-                  className="py-5 border-2 border-input focus-visible:ring-2 focus-visible:ring-primary/30 rounded-lg"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="minQty" className="text-sm font-medium">
-                  Minimum Quantity *
-                </Label>
-                <Input
-                  id="minQty"
-                  type="number"
-                  value={formData.minQty}
-                  onChange={(e) =>
-                    handleInputChange(
-                      "minQty",
-                      Number.parseInt(e.target.value) || 0
-                    )
-                  }
-                  placeholder="0"
-                  min="0"
-                  required
-                  className="py-5 border-2 border-input focus-visible:ring-2 focus-visible:ring-primary/30 rounded-lg"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="recommendedQty" className="text-sm font-medium">
-                  Recommended Quantity
-                </Label>
-                <Input
-                  id="recommendedQty"
-                  type="number"
-                  value={formData.recommendedQty}
-                  onChange={(e) =>
-                    handleInputChange(
-                      "recommendedQty",
-                      Number.parseInt(e.target.value) || 0
-                    )
-                  }
-                  placeholder="0"
-                  min="0"
-                  className="py-5 border-2 border-input focus-visible:ring-2 focus-visible:ring-primary/30 rounded-lg"
-                />
+            <CardContent className="space-y-6 pt-2">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="space-y-2">
+                  <Label htmlFor="currentStock" className="text-sm font-medium">
+                    Current Stock *
+                  </Label>
+                  <Input
+                    id="currentStock"
+                    type="number"
+                    value={formData.currentStock}
+                    onChange={(e) =>
+                      handleInputChange(
+                        "currentStock",
+                        Number.parseInt(e.target.value) || 0
+                      )
+                    }
+                    min={0}
+                    className="py-5 border-2 border-input focus-visible:ring-2 focus-visible:ring-primary/30 rounded-lg"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="minQty" className="text-sm font-medium">
+                    Minimum Quantity *
+                  </Label>
+                  <Input
+                    id="minQty"
+                    type="number"
+                    value={formData.minQty}
+                    onChange={(e) =>
+                      handleInputChange("minQty", Number.parseInt(e.target.value) || 0)
+                    }
+                    min={0}
+                    className="py-5 border-2 border-input focus-visible:ring-2 focus-visible:ring-primary/30 rounded-lg"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label
+                    htmlFor="recommendedQty"
+                    className="text-sm font-medium"
+                  >
+                    Recommended Quantity
+                  </Label>
+                  <Input
+                    id="recommendedQty"
+                    type="number"
+                    value={formData.recommendedQty}
+                    onChange={(e) =>
+                      handleInputChange(
+                        "recommendedQty",
+                        Number.parseInt(e.target.value) || 0
+                      )
+                    }
+                    min={0}
+                    className="py-5 border-2 border-input focus-visible:ring-2 focus-visible:ring-primary/30 rounded-lg"
+                  />
+                </div>
               </div>
             </CardContent>
           </Card>

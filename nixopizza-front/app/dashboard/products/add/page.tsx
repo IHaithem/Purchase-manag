@@ -1,8 +1,5 @@
-// app/dashboard/products/add/page.tsx
 "use client";
 
-import type React from "react";
-import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { DashboardLayout } from "@/components/layout/dashboard-layout";
 import { Button } from "@/components/ui/button";
@@ -25,17 +22,25 @@ import {
 } from "@/components/ui/card";
 import { ArrowLeft, Save, X, Upload, Package } from "lucide-react";
 import toast from "react-hot-toast";
-import { ICategory } from "../../categories/page";
 import { createProduct } from "@/lib/apis/products";
 import { CategorySelect } from "@/components/ui/category-select";
+import { getCategories } from "@/lib/apis/categories";
+import { useEffect, useState } from "react";
+
+export interface ICategory {
+  _id: string;
+  name: string;
+  description?: string;
+  image: string;
+}
 
 export default function AddProductPage() {
   const router = useRouter();
   const [image, setImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
-  const [selectedCategory, setSelectedCategory] = useState<ICategory | null>(
-    null
-  );
+  const [selectedCategory, setSelectedCategory] = useState<ICategory | null>(null);
+  const [categories, setCategories] = useState<ICategory[]>([]);
+  const [categorySearch, setCategorySearch] = useState("");
 
   const [formData, setFormData] = useState({
     name: "",
@@ -47,33 +52,49 @@ export default function AddProductPage() {
     description: "",
   });
 
+  useEffect(() => {
+    const fetch = async () => {
+      const { categories: data, success, message } = await getCategories(
+        categorySearch ? { name: categorySearch } : undefined
+      );
+      if (success) {
+        setCategories(data || []);
+      } else {
+        toast.error(message);
+      }
+    };
+    fetch();
+  }, [categorySearch]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-
-    if (!image) {
-      toast.error("Product image is required");
-      return;
-    }
 
     if (!selectedCategory) {
       toast.error("Please select a category");
       return;
     }
-
     if (!formData.unit) {
       toast.error("Please select a unit");
       return;
     }
+    if (!formData.name.trim()) {
+      toast.error("Product name is required");
+      return;
+    }
 
     const data = new FormData();
-    Object.entries(formData).forEach(([key, value]) => {
-      data.append(key, String(value));
-    });
+    data.append("name", formData.name.trim());
+    if (formData.barcode) data.append("barcode", formData.barcode);
+    data.append("unit", formData.unit);
+    data.append("currentStock", String(formData.currentStock));
+    data.append("minQty", String(formData.minQty));
+    data.append("recommendedQty", String(formData.recommendedQty));
+    if (formData.description) data.append("description", formData.description);
     data.append("categoryId", selectedCategory._id);
-    data.append("image", image);
+    // Image OPTIONAL
+    if (image) data.append("image", image);
 
     const { success, message } = await createProduct(data);
-
     if (success) {
       toast.success("Product Created Successfully");
       router.push("/dashboard/products");
@@ -92,12 +113,10 @@ export default function AddProductPage() {
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      // Validate file type
       if (!file.type.match("image.*")) {
         toast.error("Please select an image file");
         return;
       }
-
       setImage(file);
       setImagePreview(URL.createObjectURL(file));
     }
@@ -108,183 +127,62 @@ export default function AddProductPage() {
     setImagePreview(null);
   };
 
+  const availableCategories = categories.filter(
+    (c) => !selectedCategory || c._id !== selectedCategory._id
+  );
+
   return (
     <DashboardLayout>
-      <div className="space-y-8">
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => router.back()}
-              className="gap-2 rounded-full"
-            >
-              <ArrowLeft className="h-4 w-4" />
-              Back
-            </Button>
-            <div>
-              <h1 className="text-3xl font-heading font-bold text-gray-900">
-                Add New Product
-              </h1>
-              <p className="text-gray-600 mt-1">
-                Create a new product in your inventory system
-              </p>
-            </div>
-          </div>
-          <div className="flex items-center gap-3">
-            <Button
-              variant="outline"
-              onClick={() => router.push("/dashboard/products")}
-              className="gap-2 rounded-full px-4"
-            >
-              <X className="h-4 w-4" />
-              Cancel
-            </Button>
-            <Button
-              onClick={handleSubmit}
-              className="gap-2 rounded-full px-6 bg-primary hover:bg-primary/90"
-            >
-              <Save className="h-4 w-4" />
-              Save Product
-            </Button>
-          </div>
-        </div>
+      <div className="space-y-6">
+        <Button
+          variant="outline"
+          className="gap-2"
+          onClick={() => router.push("/dashboard/products")}
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Back
+        </Button>
 
-        {/* Form */}
-        <form onSubmit={handleSubmit} className="space-y-8">
-          {/* Basic Information */}
-          <Card className="border-0 shadow-lg rounded-xl">
-            <CardHeader className="pb-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-primary/10 rounded-lg">
-                  <Package className="h-5 w-5 text-primary" />
-                </div>
-                <div>
-                  <CardTitle className="font-heading text-xl">
-                    Basic Information
-                  </CardTitle>
-                  <CardDescription>
-                    Essential product details and identification
-                  </CardDescription>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-6 pt-2">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-2">
-                  <Label htmlFor="name" className="text-sm font-medium">
-                    Product Name *
-                  </Label>
-                  <Input
-                    id="name"
-                    value={formData.name}
-                    onChange={(e) => handleInputChange("name", e.target.value)}
-                    placeholder="Enter product name"
-                    required
-                    className="py-5 border-2 border-input focus-visible:ring-2 focus-visible:ring-primary/30 rounded-lg"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="barcode" className="text-sm font-medium">
-                    Barcode 
-                  </Label>
-                  <Input
-                    id="barcode"
-                    value={formData.barcode}
-                    onChange={(e) =>
-                      handleInputChange("barcode", e.target.value)
-                    }
-                    placeholder="Enter barcode"
-                    className="py-5 border-2 border-input focus-visible:ring-2 focus-visible:ring-primary/30 rounded-lg"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-2">
-                  <Label htmlFor="category" className="text-sm font-medium">
-                    Category *
-                  </Label>
-                  <CategorySelect
-                    selectedCategory={selectedCategory}
-                    onCategoryChange={setSelectedCategory}
-                    placeholder="Select a category"
-                    className="border-2 border-input focus:ring-2 focus:ring-primary/30 rounded-lg"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="unit" className="text-sm font-medium">
-                    Unit *
-                  </Label>
-                  <Select
-                    value={formData.unit}
-                    onValueChange={(value) => handleInputChange("unit", value)}
-                  >
-                    <SelectTrigger className="py-5 border-2 border-input focus:ring-2 focus:ring-primary/30 rounded-lg">
-                      <SelectValue placeholder="Select unit" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="liter">Liter</SelectItem>
-                      <SelectItem value="kilogram">Kilogram</SelectItem>
-                      <SelectItem value="box">Box</SelectItem>
-                      <SelectItem value="piece">Piece</SelectItem>
-                      <SelectItem value="meter">Meter</SelectItem>
-                      <SelectItem value="pack">Pack</SelectItem>
-                      <SelectItem value="bottle">bottle</SelectItem>
-
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
+        <Card>
+          <CardHeader>
+            <CardTitle className="font-heading flex items-center gap-2">
+              <Package className="h-5 w-5" />
+              Add Product
+            </CardTitle>
+            <CardDescription>
+              Create a new product. Image is optional.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleSubmit} className="space-y-6">
+              {/* Image (optional) */}
               <div className="space-y-2">
-                <Label htmlFor="description" className="text-sm font-medium">
-                  Description (Optional)
-                </Label>
-                <Textarea
-                  id="description"
-                  value={formData.description}
-                  onChange={(e) =>
-                    handleInputChange("description", e.target.value)
-                  }
-                  placeholder="Enter product description"
-                  rows={3}
-                  className="resize-y border-2 border-input focus-visible:ring-2 focus-visible:ring-primary/30 rounded-lg"
-                />
-              </div>
-
-              {/* Modern Image Upload */}
-              <div className="space-y-2">
-                <Label htmlFor="image" className="text-sm font-medium">
-                  Product Image *
-                </Label>
+                <Label>Product Image (Optional)</Label>
                 <div className="flex items-center gap-4">
                   {imagePreview ? (
-                    <div className="relative w-24 h-24 rounded-xl overflow-hidden border-2 border-input shadow-sm">
+                    <div className="relative w-24 h-24 rounded-xl overflow-hidden border">
                       <img
                         src={imagePreview}
-                        alt="Product preview"
-                        className="w-full h-full object-cover"
+                        alt="Preview"
+                        className="object-cover w-full h-full"
                       />
                       <button
                         type="button"
                         onClick={removeImage}
-                        className="absolute top-1 right-1 bg-destructive text-destructive-foreground rounded-full p-1 hover:opacity-80 shadow-sm"
+                        className="absolute top-1 right-1 bg-destructive text-destructive-foreground rounded-full p-1"
                       >
                         <X className="h-3 w-3" />
                       </button>
                     </div>
                   ) : (
-                    <div className="flex items-center justify-center w-24 h-24 border-2 border-dashed border-input rounded-xl bg-muted/20">
+                    <div className="flex items-center justify-center w-24 h-24 border-2 border-dashed rounded-xl bg-muted/20">
                       <Upload className="h-8 w-8 text-muted-foreground" />
                     </div>
                   )}
-
                   <div className="flex flex-col gap-2">
                     <Label
-                      htmlFor="image-upload"
-                      className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-md cursor-pointer hover:opacity-90 transition-opacity"
+                      htmlFor="product-image-upload"
+                      className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-md cursor-pointer hover:opacity-90"
                     >
                       <Upload className="h-4 w-4" />
                       {imagePreview ? "Change Image" : "Upload Image"}
@@ -293,7 +191,7 @@ export default function AddProductPage() {
                       PNG, JPG up to 5MB
                     </p>
                     <Input
-                      id="image-upload"
+                      id="product-image-upload"
                       type="file"
                       accept="image/*"
                       onChange={handleImageUpload}
@@ -302,91 +200,138 @@ export default function AddProductPage() {
                   </div>
                 </div>
               </div>
-            </CardContent>
-          </Card>
 
-          {/* Inventory Management */}
-          <Card className="border-0 shadow-lg rounded-xl">
-            <CardHeader className="pb-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-primary/10 rounded-lg">
-                  <Package className="h-5 w-5 text-primary" />
+              {/* Basic info */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Name *</Label>
+                  <Input
+                    value={formData.name}
+                    onChange={(e) =>
+                      handleInputChange("name", e.target.value)
+                    }
+                    required
+                  />
                 </div>
-                <div>
-                  <CardTitle className="font-heading text-xl">
-                    Inventory Management
-                  </CardTitle>
-                  <CardDescription>
-                    Stock levels and inventory tracking
-                  </CardDescription>
+                <div className="space-y-2">
+                  <Label>Barcode (Optional)</Label>
+                  <Input
+                    value={formData.barcode}
+                    onChange={(e) =>
+                      handleInputChange("barcode", e.target.value)
+                    }
+                  />
                 </div>
               </div>
-            </CardHeader>
-            <CardContent className="space-y-6 pt-2">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="currentStock" className="text-sm font-medium">
-                    Initial Stock *
-                  </Label>
+                  <Label>Unit *</Label>
+                  <Select
+                    value={formData.unit}
+                    onValueChange={(v) => handleInputChange("unit", v)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select unit" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="piece">Piece</SelectItem>
+                      <SelectItem value="box">Box</SelectItem>
+                      <SelectItem value="pack">Pack</SelectItem>
+                      <SelectItem value="bottle">Bottle</SelectItem>
+                      <SelectItem value="kilogram">Kilogram</SelectItem>
+                      <SelectItem value="liter">Liter</SelectItem>
+                      <SelectItem value="meter">Meter</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Category *</Label>
+                  <CategorySelect
+                    categories={availableCategories}
+                    selectedCategory={selectedCategory}
+                    onSelect={(c) => setSelectedCategory(c as ICategory | null)}
+                    isLoading={false}
+                    placeholder="Select category"
+                    className="border rounded-md"
+                  />
+                </div>
+              </div>
+
+              {/* Stock */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="space-y-2">
+                  <Label>Initial Stock *</Label>
                   <Input
-                    id="currentStock"
                     type="number"
+                    min={0}
                     value={formData.currentStock}
                     onChange={(e) =>
                       handleInputChange(
                         "currentStock",
-                        Number.parseInt(e.target.value) || 0
+                        parseInt(e.target.value) || 0
                       )
                     }
-                    placeholder="0"
-                    min="0"
                     required
-                    className="py-5 border-2 border-input focus-visible:ring-2 focus-visible:ring-primary/30 rounded-lg"
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="minQty" className="text-sm font-medium">
-                    Minimum Quantity *
-                  </Label>
+                  <Label>Minimum Qty *</Label>
                   <Input
-                    id="minQty"
                     type="number"
+                    min={0}
                     value={formData.minQty}
                     onChange={(e) =>
-                      handleInputChange(
-                        "minQty",
-                        Number.parseInt(e.target.value) || 0
-                      )
+                      handleInputChange("minQty", parseInt(e.target.value) || 0)
                     }
-                    placeholder="0"
-                    min="0"
                     required
-                    className="py-5 border-2 border-input focus-visible:ring-2 focus-visible:ring-primary/30 rounded-lg"
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="recommendedQty" className="text-sm font-medium">
-                    Recommended Quantity
-                  </Label>
+                  <Label>Recommended Qty (Optional)</Label>
                   <Input
-                    id="recommendedQty"
                     type="number"
+                    min={0}
                     value={formData.recommendedQty}
                     onChange={(e) =>
                       handleInputChange(
                         "recommendedQty",
-                        Number.parseInt(e.target.value) || 0
+                        parseInt(e.target.value) || 0
                       )
                     }
-                    placeholder="0"
-                    min="0"
-                    className="py-5 border-2 border-input focus-visible:ring-2 focus-visible:ring-primary/30 rounded-lg"
                   />
                 </div>
               </div>
-            </CardContent>
-          </Card>
-        </form>
+
+              {/* Description */}
+              <div className="space-y-2">
+                <Label>Description (Optional)</Label>
+                <Textarea
+                  rows={3}
+                  value={formData.description}
+                  onChange={(e) =>
+                    handleInputChange("description", e.target.value)
+                  }
+                  placeholder="Describe the product"
+                />
+              </div>
+
+              <div className="flex justify-end gap-3">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => router.push("/dashboard/products")}
+                >
+                  Cancel
+                </Button>
+                <Button type="submit" className="gap-2">
+                  <Save className="h-4 w-4" />
+                  Save Product
+                </Button>
+              </div>
+            </form>
+          </CardContent>
+        </Card>
       </div>
     </DashboardLayout>
   );

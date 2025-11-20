@@ -1,44 +1,39 @@
-// routes/order.routes.ts
 import { Router } from "express";
-import {
-  createOrder,
-  getOrder,
-  getOrderAnalytics,
-  getOrdersByFilter,
-  getOrderStats,
-  updateOrder,
-  assignOrder,
-  confirmOrder,
-} from "../controllers/order.controller";
 import { authenticate } from "../middlewares/Auth";
 import { upload } from "../middlewares/Multer";
+import {
+  createOrder,
+  assignOrder,
+  confirmOrder,
+  updateOrder,
+  getOrdersByFilter,
+  getOrderStats,
+  getOrderAnalytics,
+} from "../controllers/order.controller";
 
 const orderRouter = Router();
 
 orderRouter.use(authenticate);
 
-// Create order with optional bill upload
-orderRouter.post("/", upload("orders").single("image"), createOrder);
+// Create order (optional bill image)
+orderRouter.post("/", upload().single("image"), createOrder);
 
-// Assign order to staff
+// Assign order
 orderRouter.post("/:orderId/assign", assignOrder);
 
-// Confirm order with bill upload and price
-orderRouter.post("/:orderId/confirm", upload("orders").single("image"), confirmOrder);
+// Confirm order (preferred explicit endpoint)
+orderRouter.post("/:orderId/confirm", upload().single("image"), confirmOrder);
 
-// Update order (for marking as paid)
-orderRouter.put("/:orderId", upload("orders").single("image"), updateOrder);
+// Update order (paid/canceled or alternative confirmation flow)
+orderRouter.put("/:orderId", upload().single("image"), updateOrder);
 
-// Get filtered orders
-orderRouter.get("/", getOrdersByFilter);
-
-// Get order statistics
+// Stats (404 fix)
 orderRouter.get("/stats", getOrderStats);
 
-// Get order analytics
+// Analytics (optional)
 orderRouter.get("/analytics", getOrderAnalytics);
 
-// Get single order
-orderRouter.get("/:orderId", getOrder);
+// Filtered fetch
+orderRouter.get("/", getOrdersByFilter);
 
 export default orderRouter;

@@ -1,6 +1,7 @@
 // components/ui/supplier-select.tsx
 "use client";
 
+import { resolveImage } from "@/lib/resolveImage";
 import * as React from "react";
 import { useState, useEffect, useRef } from "react";
 import { cn } from "@/lib/utils";
@@ -166,7 +167,7 @@ export function SupplierSelect({
           <div className="flex items-center gap-2">
             {selectedSupplier.image ? (
               <img
-                src={process.env.NEXT_PUBLIC_BASE_URL + selectedSupplier.image}
+                src={resolveImage(selectedSupplier.image)}
                 alt={selectedSupplier.name}
                 className="w-6 h-6 rounded-full object-cover"
               />
@@ -221,7 +222,7 @@ export function SupplierSelect({
                 >
                   {supplier.image ? (
                     <img
-                      src={process.env.NEXT_PUBLIC_BASE_URL + supplier.image}
+                      src={resolveImage(supplier.image)}
                       alt={supplier.name}
                       className="w-8 h-8 rounded-full object-cover"
                     />

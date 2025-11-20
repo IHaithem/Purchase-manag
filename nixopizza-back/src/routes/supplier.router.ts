@@ -12,19 +12,9 @@ const supplierRouter = Router();
 
 supplierRouter.use(authenticate);
 
-supplierRouter.post(
-  "/",
-  requireAdmin,
-  upload("suppliers").single("image"),
-  createSupplier
-);
+supplierRouter.post("/", requireAdmin, upload().single("image"), createSupplier);
 supplierRouter.get("/", getSuppliers);
 supplierRouter.get("/:supplierId", getSupplierById);
-supplierRouter.put(
-  "/:supplierId",
-  requireAdmin,
-  upload("suppliers").single("image"),
-  updateSupplier
-);
+supplierRouter.put("/:supplierId", requireAdmin, upload().single("image"), updateSupplier);
 
 export default supplierRouter;

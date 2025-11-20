@@ -1,144 +1,123 @@
 import { Request, Response } from "express";
 import Supplier from "../models/supplier.model";
+import crypto from "crypto";
+import { uploadBufferToBlob } from "../utils/blob";
 import { deleteImage } from "../utils/Delete";
-import mongoose from "mongoose";
 
-export const createSupplier = async (
-  req: Request,
-  res: Response
-): Promise<void> => {
+/**
+ * Normalize email: empty -> undefined
+ */
+const normalizeEmail = (value: any): string | undefined => {
+  if (!value) return undefined;
+  const t = String(value).trim();
+  return t === "" ? undefined : t.toLowerCase();
+};
+
+/**
+ * GET /api/suppliers
+ */
+export const getSuppliers = async (_req: Request, res: Response): Promise<void> => {
   try {
-    const { name, contactPerson, email, phone1, phone2, phone3, address, city, categoryIds, notes } =
-      req.body;
-
-    const existingSupplier = await Supplier.findOne({ email });
-    if (existingSupplier) {
-      res
-        .status(400)
-        .json({ message: "Supplier with this name already exists" });
-      return;
-    }
-    const filename = req.file ? req.file.filename : undefined;
-
-    const supplier = new Supplier({
-      name,
-      contactPerson,
-      email,
-      phone1,
-      phone2,
-      phone3,
-      address,
-      city,
-      notes,
-      categoryIds,
-      image: `/uploads/suppliers/${filename}`,
-    });
-    await supplier.save();
-
-    res.status(201).json({ supplier });
-  } catch (error) {
-    res.status(500).json({ message: "Server Error", error });
+    const suppliers = await Supplier.find().sort({ createdAt: -1 });
+    res.status(200).json({ suppliers });
+  } catch (e: any) {
+    res.status(500).json({ message: "Internal server error", error: e.message });
   }
 };
 
-export const getSuppliers = async (
-  req: Request,
-  res: Response
-): Promise<void> => {
+/**
+ * GET /api/suppliers/:supplierId
+ */
+export const getSupplierById = async (req: Request, res: Response): Promise<void> => {
   try {
-    const {
-      name,
-      page = 1,
-      limit = 10,
-      sortBy,
-      order,
-      status,
-      categoryIds,
-    } = req.query;
-
-    const query: any = {};
-
-    if (name) {
-      query.name = { $regex: name.toString(), $options: "i" };
-    }
-
-    if (status === "active") query.isActive = true;
-    if (status === "inactive") query.isActive = false;
-
-    if (categoryIds) {
-      let ids: string[] = [];
-
-      if (Array.isArray(categoryIds)) {
-        // If categoryIds is already an array
-        ids = categoryIds.map((id) => id.toString());
-      } else if (typeof categoryIds === "string") {
-        // If categoryIds is a comma-separated string
-        ids = categoryIds.split(",");
-      }
-
-      query.categoryIds = {
-        $in: ids.map((id) => new mongoose.Types.ObjectId(id.trim())),
-      };
-    }
-
-    const skip = (Number(page) - 1) * Number(limit);
-    const sortField = sortBy?.toString() || "createdAt";
-    const sortOrder = order === "asc" ? 1 : -1;
-
-    const suppliers = await Supplier.find(query)
-      .sort({ [sortField]: sortOrder })
-      .skip(skip)
-      .limit(Number(limit));
-
-    const total = await Supplier.countDocuments(query);
-
-    res
-      .status(200)
-      .json({ suppliers, total, pages: Math.ceil(total / Number(limit)) });
-  } catch (error: any) {
-    console.error("Error in getSuppliers:", error);
-    res.status(500).json({ message: "Server Error", error: error.message });
-  }
-};
-
-export const getSupplierById = async (
-  req: Request,
-  res: Response
-): Promise<void> => {
-  try {
-    const { supplierId } = req.params;
-    const supplier = await Supplier.findById(supplierId);
+    const supplier = await Supplier.findById(req.params.supplierId);
     if (!supplier) {
       res.status(404).json({ message: "Supplier not found" });
       return;
     }
     res.status(200).json({ supplier });
-  } catch (error: any) {
-    res.status(500).json({
-      message: "Internal Server Error",
-      error: error.message,
-    });
+  } catch (e: any) {
+    res.status(500).json({ message: "Internal server error", error: e.message });
   }
 };
 
-export const updateSupplier = async (
-  req: Request,
-  res: Response
-): Promise<void> => {
+/**
+ * POST /api/suppliers
+ * Email optional, duplicates allowed.
+ */
+export const createSupplier = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { supplierId } = req.params;
     const {
       name,
-      address,
-      city,
       contactPerson,
       email,
       phone1,
       phone2,
       phone3,
-      categoryIds,
+      address,
+      city,
       notes,
       isActive,
+      categoryIds,
+    } = req.body;
+
+    if (!name || !contactPerson || !phone1 || !address) {
+      res.status(400).json({ message: "Missing required fields: name, contactPerson, phone1, address" });
+      return;
+    }
+
+    const normalizedEmail = normalizeEmail(email);
+
+    let imageUrl: string | undefined;
+    if (req.file) {
+      const ext = (req.file.originalname.match(/\.[^/.]+$/) || [".bin"])[0];
+      const key = `${Date.now()}-${crypto.randomBytes(6).toString("hex")}${ext}`;
+      const uploaded = await uploadBufferToBlob(key, req.file.buffer, req.file.mimetype);
+      imageUrl = uploaded.url;
+    }
+
+    const supplier = await Supplier.create({
+      name,
+      contactPerson,
+      email: normalizedEmail,
+      phone1,
+      phone2: phone2 || undefined,
+      phone3: phone3 || undefined,
+      address,
+      city: city || undefined,
+      notes: notes || undefined,
+      isActive: isActive !== undefined ? isActive : true,
+      categoryIds: Array.isArray(categoryIds) ? categoryIds : [],
+      image: imageUrl,
+    });
+
+    res.status(201).json({ message: "Supplier created successfully", supplier });
+  } catch (e: any) {
+    // No uniqueness conflict expected now
+    res.status(500).json({ message: "Internal server error", error: e.message });
+  }
+};
+
+/**
+ * PUT /api/suppliers/:supplierId
+ * Removing email (blank) sets it to undefined.
+ */
+export const updateSupplier = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { supplierId } = req.params;
+    const {
+      name,
+      contactPerson,
+      email,
+      phone1,
+      phone2,
+      phone3,
+      address,
+      city,
+      notes,
+      isActive,
+      categoryIds,
+      removeEmail,
     } = req.body;
 
     const supplier = await Supplier.findById(supplierId);
@@ -147,34 +126,47 @@ export const updateSupplier = async (
       return;
     }
 
-    // Update supplier fields if provided in the request
-    if (name) supplier.name = name;
-    if (address) supplier.address = address;
-    if (city !== undefined) supplier.city = city;
-    if (contactPerson) supplier.contactPerson = contactPerson;
-    if (email) supplier.email = email;
-    if (phone1 !== undefined) supplier.phone1 = phone1;
-    if (phone2 !== undefined) supplier.phone2 = phone2;
-    if (phone3 !== undefined) supplier.phone3 = phone3;
-    if (categoryIds) supplier.categoryIds = categoryIds;
-    if (notes) supplier.notes = notes;
-    if (typeof isActive !== "undefined") supplier.isActive = isActive;
+    const normalizedEmail = normalizeEmail(email);
 
-    // Handle image upload if present
+    if (removeEmail === "true" || (!normalizedEmail && supplier.email)) {
+      supplier.email = undefined;
+    } else if (normalizedEmail) {
+      supplier.email = normalizedEmail;
+    }
+
+    if (name) supplier.name = name;
+    if (contactPerson) supplier.contactPerson = contactPerson;
+    if (phone1) supplier.phone1 = phone1;
+    supplier.phone2 = phone2 ? phone2 : undefined;
+    supplier.phone3 = phone3 ? phone3 : undefined;
+    if (address) supplier.address = address;
+    supplier.city = city ? city : undefined;
+    supplier.notes = notes ? notes : undefined;
+    if (isActive !== undefined) supplier.isActive = isActive === "true" || isActive === true;
+
+    if (categoryIds !== undefined) {
+      supplier.categoryIds = Array.isArray(categoryIds)
+        ? categoryIds
+        : [categoryIds].filter(Boolean);
+    }
+
     if (req.file) {
-      deleteImage(supplier.image);
-      supplier.image = `/uploads/suppliers/${req.file.filename}`;
+      if (supplier.image && supplier.image.startsWith("/uploads/")) {
+        try {
+          deleteImage(supplier.image);
+        } catch (err) {
+          console.warn("Failed to delete legacy image:", err);
+        }
+      }
+      const ext = (req.file.originalname.match(/\.[^/.]+$/) || [".bin"])[0];
+      const key = `${Date.now()}-${crypto.randomBytes(6).toString("hex")}${ext}`;
+      const uploaded = await uploadBufferToBlob(key, req.file.buffer, req.file.mimetype);
+      supplier.image = uploaded.url;
     }
 
     await supplier.save();
-
-    res.status(200).json({
-      message: `Supplier ${supplier.name} updated successfully`,
-      supplier,
-    });
-  } catch (error: any) {
-    res
-      .status(500)
-      .json({ message: "Internal server error", error: error.message });
+    res.status(200).json({ message: "Supplier updated successfully", supplier });
+  } catch (e: any) {
+    res.status(500).json({ message: "Internal server error", error: e.message });
   }
 };
