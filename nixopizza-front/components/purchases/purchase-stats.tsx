@@ -1,41 +1,19 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { getOrderStats } from "@/lib/apis/purchase-list";
 import { ShoppingCart, Clock, CheckCircle, DollarSign } from "lucide-react";
-import { useEffect, useState } from "react";
-import toast from "react-hot-toast";
 
-export function PurchaseStats() {
-  const [stats, setStats] = useState({
-    pendingOrders: 0,
-    confirmedOrders: 0,
-    paidOrders: 0,
-    totalValue: 0,
-  });
+type PurchaseStatsProps = {
+  pendingOrders: number;
+  confirmedOrders: number;
+  paidOrders: number;
+  totalValue: number;
+};
 
-  useEffect(() => {
-    const fetchStats = async () => {
-      const response = await getOrderStats();
-
-      if (response.success && response.stats) {
-        const {
-          notAssignedOrders = 0,
-          assignedOrders = 0,
-          confirmedOrders = 0,
-          paidOrders = 0,
-          totalValue = 0,
-        } = response.stats;
-
-        const pendingOrders = notAssignedOrders + assignedOrders;
-
-        setStats({ pendingOrders, confirmedOrders, paidOrders, totalValue });
-      } else {
-        toast.error(response.message || "Failed to fetch order stats");
-      }
-    };
-
-    fetchStats();
-  }, []);
-
+export function PurchaseStats({
+  pendingOrders,
+  confirmedOrders,
+  paidOrders,
+  totalValue,
+}: PurchaseStatsProps) {
   return (
     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
       {/* Pending Orders */}
@@ -45,7 +23,7 @@ export function PurchaseStats() {
           <Clock className="h-4 w-4 text-muted-foreground" />
         </CardHeader>
         <CardContent>
-          <div className="text-2xl font-bold">{stats.pendingOrders}</div>
+          <div className="text-2xl font-bold">{pendingOrders}</div>
           <p className="text-xs text-muted-foreground">Awaiting processing</p>
         </CardContent>
       </Card>
@@ -57,7 +35,7 @@ export function PurchaseStats() {
           <CheckCircle className="h-4 w-4 text-blue-600" />
         </CardHeader>
         <CardContent>
-          <div className="text-2xl font-bold text-blue-600">{stats.confirmedOrders}</div>
+          <div className="text-2xl font-bold text-blue-600">{confirmedOrders}</div>
           <p className="text-xs text-muted-foreground">Ready for fulfillment</p>
         </CardContent>
       </Card>
@@ -69,7 +47,7 @@ export function PurchaseStats() {
           <DollarSign className="h-4 w-4 text-green-600" />
         </CardHeader>
         <CardContent>
-          <div className="text-2xl font-bold text-green-600">{stats.paidOrders}</div>
+          <div className="text-2xl font-bold text-green-600">{paidOrders}</div>
           <p className="text-xs text-muted-foreground">Payment received</p>
         </CardContent>
       </Card>
@@ -81,8 +59,8 @@ export function PurchaseStats() {
           <ShoppingCart className="h-4 w-4 text-muted-foreground" />
         </CardHeader>
         <CardContent>
-          <div className="text-2xl font-bold">{stats.totalValue.toFixed(2)} DA</div>
-          <p className="text-xs text-muted-foreground">This month</p>
+          <div className="text-2xl font-bold">{totalValue.toFixed(2)} DA</div>
+          <p className="text-xs text-muted-foreground">For current filters</p>
         </CardContent>
       </Card>
     </div>

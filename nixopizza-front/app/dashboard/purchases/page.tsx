@@ -73,7 +73,7 @@ export default function PurchasesPage() {
     to: null,
   });
 
-  // Apply filters from URL parameters on initial load
+  // Apply filters from URL parameters on initial load (used by Shortcuts)
   useEffect(() => {
     const statusParam = searchParams.get("status");
     const dateFrom = searchParams.get("dateFrom");
@@ -82,7 +82,7 @@ export default function PurchasesPage() {
     if (statusParam) {
       setStatus(statusParam);
     }
-    
+
     if (dateFrom && dateTo) {
       setDateRange({
         from: new Date(dateFrom),
@@ -115,7 +115,7 @@ export default function PurchasesPage() {
       }
     };
     fetchOrders();
-  }, [search, supplierIds, sort, refreshTrigger]);
+  }, [search, supplierIds, sort, refreshTrigger, currentPage]);
 
   // Client-side filtering
   const filteredOrders = useMemo(() => {
@@ -133,12 +133,23 @@ export default function PurchasesPage() {
 
     // Filter by status (handle comma-separated)
     if (status !== "all") {
-      const statusArray = status.split(',').map(s => s.trim());
+      const statusArray = status.split(",").map((s) => s.trim());
       filtered = filtered.filter((order) => statusArray.includes(order.status));
     }
 
     return filtered;
   }, [allPurchaseOrders, dateRange, status]);
+
+  // Stats computed from the filtered orders (reacts to filters and shortcuts)
+  const filteredStats = useMemo(() => {
+    const pendingOrders = filteredOrders.filter((o) =>
+      ["not assigned", "assigned"].includes(o.status)
+    ).length;
+    const confirmedOrders = filteredOrders.filter((o) => o.status === "confirmed").length;
+    const paidOrders = filteredOrders.filter((o) => o.status === "paid").length;
+    const totalValue = filteredOrders.reduce((sum, o) => sum + (o.totalAmount || 0), 0);
+    return { pendingOrders, confirmedOrders, paidOrders, totalValue };
+  }, [filteredOrders]);
 
   // Pagination
   const paginatedOrders = useMemo(() => {
@@ -171,7 +182,12 @@ export default function PurchasesPage() {
           initialStatus={status}
           initialDateRange={dateRange}
         />
-        <PurchaseStats />
+        <PurchaseStats
+          pendingOrders={filteredStats.pendingOrders}
+          confirmedOrders={filteredStats.confirmedOrders}
+          paidOrders={filteredStats.paidOrders}
+          totalValue={filteredStats.totalValue}
+        />
         <PurchaseListsTable
           setPurchaseOrders={setAllPurchaseOrders}
           purchaseOrders={paginatedOrders}
