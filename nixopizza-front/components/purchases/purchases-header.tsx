@@ -143,12 +143,14 @@ export function PurchasesHeader({
               <SelectValue placeholder="Status" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All Orders</SelectItem>
-              <SelectItem value="not assigned">Not Assigned</SelectItem>
-              <SelectItem value="assigned">Assigned</SelectItem>
-              <SelectItem value="confirmed">Confirmed</SelectItem>
-              <SelectItem value="paid">Paid</SelectItem>
-            </SelectContent>
+  <SelectItem value="all">All Orders</SelectItem>
+  <SelectItem value="not assigned">Not Assigned</SelectItem>
+  <SelectItem value="assigned">Assigned</SelectItem>
+  <SelectItem value="pending_review">Pending Review</SelectItem>
+  <SelectItem value="verified">Verified</SelectItem>
+  <SelectItem value="paid">Paid</SelectItem>
+  <SelectItem value="canceled">Canceled</SelectItem>
+</SelectContent>
           </Select>
 
           {/* Supplier Filter */}

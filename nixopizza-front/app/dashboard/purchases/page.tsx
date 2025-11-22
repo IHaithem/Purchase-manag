@@ -1,4 +1,3 @@
-// app/dashboard/purchases/page.tsx
 "use client";
 import { DashboardLayout } from "@/components/layout/dashboard-layout";
 import { PurchasesHeader } from "@/components/purchases/purchases-header";
@@ -31,7 +30,6 @@ export interface IOrder {
     _id: string;
     avatar: string;
   } | null;
-  // Updated statuses
   status: "not assigned" | "assigned" | "pending_review" | "verified" | "paid" | "canceled";
   totalAmount: number;
   items: {
@@ -57,8 +55,6 @@ export interface IOrder {
   paidDate?: Date;
   expectedDate?: Date;
   canceledDate?: Date;
-  // legacy optional while migration occurs
-  confirmedDate?: Date;
 }
 
 export default function PurchasesPage() {
@@ -77,21 +73,13 @@ export default function PurchasesPage() {
     to: null,
   });
 
-  // Apply filters from URL parameters on initial load
   useEffect(() => {
     const statusParam = searchParams.get("status");
     const dateFrom = searchParams.get("dateFrom");
     const dateTo = searchParams.get("dateTo");
-
-    if (statusParam) {
-      setStatus(statusParam);
-    }
-    
+    if (statusParam) setStatus(statusParam);
     if (dateFrom && dateTo) {
-      setDateRange({
-        from: new Date(dateFrom),
-        to: new Date(dateTo),
-      });
+      setDateRange({ from: new Date(dateFrom), to: new Date(dateTo) });
     }
   }, [searchParams]);
 
@@ -100,36 +88,25 @@ export default function PurchasesPage() {
       const params: any = {
         orderNumber: search,
         page: currentPage,
-        limit: 1000, // Fetch all orders for client-side filtering
+        limit: 1000,
         sortBy: sort.sortBy,
         order: sort.order,
       };
-
-      // Don't send status or dates to backend - we'll filter on frontend
       if (supplierIds.length > 0) {
         params.supplierIds = supplierIds.join(",");
       }
-
       const { orders, success, message } = await getOrders(params);
-
       if (success) {
-        // Normalize any legacy 'confirmed' coming from backend into 'verified'
-        const normalized = (orders as IOrder[]).map((o) =>
-          (o.status as any) === "confirmed" ? { ...o, status: "verified" } : o
-        );
-        setAllPurchaseOrders(normalized);
+        setAllPurchaseOrders(orders);
       } else {
         toast.error(message || "Failed to fetch orders");
       }
     };
     fetchOrders();
-  }, [search, supplierIds, sort, refreshTrigger]);
+  }, [search, supplierIds, sort, refreshTrigger, currentPage]);
 
-  // Client-side filtering
   const filteredOrders = useMemo(() => {
     let filtered = [...allPurchaseOrders];
-
-    // Filter by date range
     if (dateRange.from || dateRange.to) {
       filtered = filtered.filter((order) => {
         const orderDate = new Date(order.createdAt);
@@ -138,17 +115,13 @@ export default function PurchasesPage() {
         return true;
       });
     }
-
-    // Filter by status (handle comma-separated)
     if (status !== "all") {
-      const statusArray = status.split(',').map(s => s.trim());
-      filtered = filtered.filter((order) => statusArray.includes(order.status));
+      const statusArray = status.split(",").map((s) => s.trim());
+      filtered = filtered.filter((o) => statusArray.includes(o.status));
     }
-
     return filtered;
   }, [allPurchaseOrders, dateRange, status]);
 
-  // Pagination
   const paginatedOrders = useMemo(() => {
     const startIndex = (currentPage - 1) * limit;
     const endIndex = startIndex + limit;
@@ -158,12 +131,10 @@ export default function PurchasesPage() {
   }, [filteredOrders, currentPage, limit]);
 
   const addingNewOrder = (newOrder: IOrder) => {
-    setAllPurchaseOrders((prevOrders) => [newOrder, ...prevOrders]);
+    setAllPurchaseOrders((prev) => [newOrder, ...prev]);
   };
 
-  const handleRefresh = () => {
-    setRefreshTrigger((prev) => prev + 1);
-  };
+  const handleRefresh = () => setRefreshTrigger((p) => p + 1);
 
   return (
     <DashboardLayout>
@@ -179,7 +150,7 @@ export default function PurchasesPage() {
           initialStatus={status}
           initialDateRange={dateRange}
         />
-        <PurchaseStats />
+        <PurchaseStats/>
         <PurchaseListsTable
           setPurchaseOrders={setAllPurchaseOrders}
           purchaseOrders={paginatedOrders}

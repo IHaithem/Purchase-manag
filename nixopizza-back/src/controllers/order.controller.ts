@@ -1,4 +1,4 @@
-// controllers/order.controller.ts
+// controllers/order.controller.ts (confirmed fully removed)
 import { Request, Response } from "express";
 import Product from "../models/product.model";
 import Order from "../models/order.model";
@@ -19,7 +19,6 @@ const buildBlobKey = (originalName: string) => {
   return `${Date.now()}-${unique}${ext}`;
 };
 
-// Re-populate helper used before sending responses
 async function populateOrder(orderDoc: any) {
   if (!orderDoc) return orderDoc;
   return await orderDoc
@@ -38,16 +37,10 @@ async function populateOrder(orderDoc: any) {
         },
       },
     ])
-    .execPopulate?.(); // For older Mongoose versions; ignore if not needed
+    .execPopulate?.();
 }
 
-/**
- * CREATE ORDER
- */
-export const createOrder = async (
-  req: Request,
-  res: Response
-): Promise<void> => {
+export const createOrder = async (req: Request, res: Response): Promise<void> => {
   try {
     const {
       items,
@@ -55,12 +48,7 @@ export const createOrder = async (
       notes,
       expectedDate,
     }: {
-      items: {
-        productId: string;
-        quantity: number;
-        unitCost: number;
-        expirationDate: Date;
-      }[];
+      items: { productId: string; quantity: number; unitCost: number; expirationDate: Date }[];
       supplierId: string;
       notes: string;
       expectedDate?: Date;
@@ -75,13 +63,12 @@ export const createOrder = async (
       async ({ productId, quantity, unitCost, expirationDate }) => {
         const product = await Product.findById(productId);
         if (!product) throw new Error("Product not found");
-
         const productOrder = await ProductOrder.create({
           productId,
-          quantity,
-          unitCost,
-          expirationDate,
-          remainingQte: quantity,
+            quantity,
+            unitCost,
+            expirationDate,
+            remainingQte: quantity,
         });
         await productOrder.save();
         return productOrder._id;
@@ -90,10 +77,10 @@ export const createOrder = async (
 
     const productOrders = await Promise.all(productOrdersPromises);
 
-    let totalAmount = 0;
-    for (const item of items) {
-      totalAmount += item.unitCost * item.quantity;
-    }
+    const totalAmount = items.reduce(
+      (sum, item) => sum + item.unitCost * item.quantity,
+      0
+    );
 
     const order = new Order({
       items: productOrders,
@@ -117,111 +104,67 @@ export const createOrder = async (
 
     await order.save();
     const populated = await populateOrder(order);
-    res.status(201).json({
-      message: "Order created successfully",
-      order: populated || order,
-    });
+    res
+      .status(201)
+      .json({ message: "Order created successfully", order: populated || order });
   } catch (error: any) {
-    res.status(500).json({
-      message: "Internal server error",
-      error: error.message,
-    });
+    res.status(500).json({ message: "Internal server error", error: error.message });
   }
 };
 
-/**
- * ASSIGN ORDER
- */
-export const assignOrder = async (
-  req: Request,
-  res: Response
-): Promise<void> => {
+export const assignOrder = async (req: Request, res: Response): Promise<void> => {
   try {
     const orderId = req.params.orderId;
     const { staffId } = req.body;
-
     if (!staffId) {
       res.status(400).json({ message: "Staff ID is required" });
       return;
     }
-
     const order = await Order.findById(orderId);
     if (!order) {
       res.status(404).json({ message: "Order not found" });
       return;
     }
-
     if (order.status !== "not assigned") {
-      res.status(400).json({ message: "Order is already assigned" });
+      res.status(400).json({ message: "Order is already assigned or progressed" });
       return;
     }
-
     order.staffId = staffId;
     order.status = "assigned";
-    (order as any).assignedDate = new Date();
-
+    order.assignedDate = new Date();
     await order.save();
     const populated = await populateOrder(order);
-    res
-      .status(200)
-      .json({ message: "Order assigned successfully", order: populated || order });
+    res.status(200).json({ message: "Order assigned successfully", order: populated || order });
   } catch (error: any) {
-    res.status(500).json({
-      message: "Internal Server Error",
-      error: error.message,
-    });
+    res.status(500).json({ message: "Internal Server Error", error: error.message });
   }
 };
 
-/**
- * STEP 1: SUBMIT FOR REVIEW (was confirmOrder)
- * assigned -> pending_review
- * Upload bill & optionally adjust totalAmount
- * DO NOT update inventory yet
- */
-export const submitOrderForReview = async (
-  req: Request,
-  res: Response
-): Promise<void> => {
+// Step 1: assigned -> pending_review
+export const submitOrderForReview = async (req: Request, res: Response): Promise<void> => {
   try {
     const orderId = req.params.orderId;
     const { totalAmount } = req.body;
-
     const order = await Order.findById(orderId).populate({
       path: "items",
       populate: { path: "productId" },
     });
-
     if (!order) {
       res.status(404).json({ message: "Order not found" });
       return;
     }
-
     if (order.status !== "assigned") {
-      res.status(400).json({
-        message: "Order must be assigned before submitting for review",
-      });
+      res.status(400).json({ message: "Order must be assigned first" });
       return;
     }
-
     if (!req.file) {
-      res.status(400).json({ message: "Bill file is required" });
+      res.status(400).json({ message: "Bill file required" });
       return;
     }
 
-    if (totalAmount) {
-      order.totalAmount = parseFloat(totalAmount);
-    }
-
-    // Replace existing bill if stored locally
     if (order.bon && order.bon.startsWith("/uploads/orders/")) {
-      try {
-        deleteImage(order.bon);
-      } catch (e) {
-        console.warn("Failed to delete legacy order bill:", e);
-      }
+      try { deleteImage(order.bon); } catch {}
     }
-
     const key = buildBlobKey(req.file.originalname);
     const uploaded = await uploadBufferToBlob(
       key,
@@ -230,8 +173,12 @@ export const submitOrderForReview = async (
     );
     order.bon = uploaded.url;
 
+    if (totalAmount) {
+      order.totalAmount = parseFloat(totalAmount);
+    }
+
     order.status = "pending_review";
-    (order as any).pendingReviewDate = new Date();
+    order.pendingReviewDate = new Date();
 
     await order.save();
     const populated = await populateOrder(order);
@@ -239,54 +186,31 @@ export const submitOrderForReview = async (
       .status(200)
       .json({ message: "Order submitted for review", order: populated || order });
   } catch (error: any) {
-    res.status(500).json({
-      message: "Internal Server Error",
-      error: error.message,
-    });
+    res.status(500).json({ message: "Internal Server Error", error: error.message });
   }
 };
 
-/**
- * LEGACY confirm endpoint compatibility
- * /confirm still points to submitOrderForReview for older clients
- */
-export const confirmOrder = submitOrderForReview;
-
-/**
- * STEP 2: VERIFY ORDER
- * pending_review -> verified
- * Apply inventory increments NOW
- */
-export const verifyOrder = async (
-  req: Request,
-  res: Response
-): Promise<void> => {
+// Step 2: pending_review -> verified (inventory updated now)
+export const verifyOrder = async (req: Request, res: Response): Promise<void> => {
   try {
     const orderId = req.params.orderId;
-
     const order = await Order.findById(orderId).populate({
       path: "items",
       populate: { path: "productId" },
     });
-
     if (!order) {
       res.status(404).json({ message: "Order not found" });
       return;
     }
-
     if (order.status !== "pending_review") {
-      res.status(400).json({
-        message: "Order must be pending_review to verify",
-      });
+      res.status(400).json({ message: "Order must be pending_review to verify" });
       return;
     }
-
     if (!order.bon) {
-      res.status(400).json({ message: "Bill file missing" });
+      res.status(400).json({ message: "Bill missing" });
       return;
     }
 
-    // Now adjust inventory
     for (const itemId of order.items) {
       const productOrder: any = await ProductOrder.findById(itemId);
       if (productOrder) {
@@ -299,7 +223,7 @@ export const verifyOrder = async (
     }
 
     order.status = "verified";
-    (order as any).verifiedDate = new Date();
+    order.verifiedDate = new Date();
 
     await order.save();
     const populated = await populateOrder(order);
@@ -307,22 +231,11 @@ export const verifyOrder = async (
       .status(200)
       .json({ message: "Order verified successfully", order: populated || order });
   } catch (error: any) {
-    res.status(500).json({
-      message: "Internal Server Error",
-      error: error.message,
-    });
+    res.status(500).json({ message: "Internal Server Error", error: error.message });
   }
 };
 
-/**
- * UPDATE ORDER
- * Handles paid / canceled / expectedDate changes
- * (Does NOT handle review or verify transitions - they have dedicated endpoints)
- */
-export const updateOrder = async (
-  req: Request,
-  res: Response
-): Promise<void> => {
+export const updateOrder = async (req: Request, res: Response): Promise<void> => {
   try {
     const orderId = req.params.orderId;
     const { status, expectedDate, canceledDate, totalAmount } = req.body;
@@ -334,8 +247,6 @@ export const updateOrder = async (
       "verified",
       "paid",
       "canceled",
-      // legacy "confirmed" allowed for backward compatibility (will soon migrate)
-      "confirmed",
     ];
     if (status && !validStatuses.includes(status)) {
       res.status(400).json({
@@ -353,61 +264,9 @@ export const updateOrder = async (
       return;
     }
 
-    // Legacy path: if someone still sends confirmed & current status is assigned
-    if (status === "confirmed" && order.status === "assigned") {
-      // Treat as pending_review + verify immediate? (or reject)
-      // Here we treat it like the old flow: require bill + adjust stock simultaneously.
-      if (!req.file && !order.bon) {
-        res.status(400).json({ message: "Bill file required to confirm order" });
-        return;
-      }
-
-      if (req.file) {
-        if (order.bon && order.bon.startsWith("/uploads/orders/")) {
-          try {
-            deleteImage(order.bon);
-          } catch (e) {
-            console.warn("Failed to delete legacy order bill:", e);
-          }
-        }
-        const key = buildBlobKey(req.file.originalname);
-        const uploaded = await uploadBufferToBlob(
-          key,
-          req.file.buffer,
-          req.file.mimetype
-        );
-        order.bon = uploaded.url;
-      }
-
-      if (totalAmount) {
-        order.totalAmount = parseFloat(totalAmount);
-      }
-
-      // Inventory adjustment
-      for (const itemId of order.items) {
-        const productOrder: any = await ProductOrder.findById(itemId);
-        if (productOrder) {
-          const product = await Product.findById(productOrder.productId);
-          if (product) {
-            product.currentStock += productOrder.quantity;
-            await product.save();
-          }
-        }
-      }
-
-      // Mark as verified (legacy confirmed mapped)
-      order.status = "verified";
-      (order as any).verifiedDate = new Date();
-      if ((order as any).confirmedDate) {
-        // Keep legacy confirmedDate or move it
-        (order as any).confirmedDate = undefined;
-      }
-    } else if (status === "paid") {
-      // Allow from verified OR (legacy confirmed still lingering)
-      if (!["verified", "confirmed"].includes(order.status)) {
-        res.status(400).json({
-          message: "Order must be verified before marking as paid",
-        });
+    if (status === "paid") {
+      if (order.status !== "verified") {
+        res.status(400).json({ message: "Order must be verified before paid" });
         return;
       }
       order.status = "paid";
@@ -415,30 +274,21 @@ export const updateOrder = async (
     } else if (status === "canceled") {
       order.status = "canceled";
       order.canceledDate = canceledDate ? new Date(canceledDate) : new Date();
-    } else if (
-      status &&
-      status !== order.status &&
-      !["confirmed", "paid", "canceled"].includes(status)
-    ) {
-      // Generic direct status change ONLY for allowed simple transitions (e.g., not assigned -> assigned)
+    } else if (status && status !== order.status) {
+      // Allow simple forward transitions (e.g., not assigned -> assigned)
       order.status = status;
-      if (status === "assigned") (order as any).assignedDate = new Date();
-      if (status === "pending_review") (order as any).pendingReviewDate = new Date();
-      if (status === "verified") (order as any).verifiedDate = new Date();
+      if (status === "assigned") order.assignedDate = new Date();
+      if (status === "pending_review") order.pendingReviewDate = new Date();
+      if (status === "verified") order.verifiedDate = new Date();
     }
 
     if (expectedDate !== undefined) {
       order.expectedDate = expectedDate ? new Date(expectedDate) : undefined;
     }
 
-    // Bill upload if not part of legacy confirmation path
-    if (req.file && status !== "confirmed") {
+    if (req.file) {
       if (order.bon && order.bon.startsWith("/uploads/orders/")) {
-        try {
-          deleteImage(order.bon);
-        } catch (e) {
-          console.warn("Failed to delete legacy bill:", e);
-        }
+        try { deleteImage(order.bon); } catch {}
       }
       const key = buildBlobKey(req.file.originalname);
       const uploaded = await uploadBufferToBlob(
@@ -449,7 +299,7 @@ export const updateOrder = async (
       order.bon = uploaded.url;
     }
 
-    if (totalAmount && status !== "confirmed") {
+    if (totalAmount) {
       order.totalAmount = parseFloat(totalAmount);
     }
 
@@ -466,13 +316,7 @@ export const updateOrder = async (
   }
 };
 
-/**
- * FILTERED FETCH
- */
-export const getOrdersByFilter = async (
-  req: Request,
-  res: Response
-): Promise<void> => {
+export const getOrdersByFilter = async (req: Request, res: Response): Promise<void> => {
   try {
     const {
       orderNumber,
@@ -486,9 +330,7 @@ export const getOrdersByFilter = async (
     } = req.query;
 
     if (Number(page) < 1 || Number(limit) < 1) {
-      res
-        .status(400)
-        .json({ message: "Page and limit must be greater than 0" });
+      res.status(400).json({ message: "Page and limit must be > 0" });
       return;
     }
 
@@ -496,20 +338,16 @@ export const getOrdersByFilter = async (
 
     if (status) query.status = status;
     if (staffId) query.staffId = staffId;
-    if (orderNumber)
+    if (orderNumber) {
       query.orderNumber = { $regex: orderNumber, $options: "i" };
+    }
 
     if (supplierIds) {
       let supplierIdArray: string[] = [];
-      if (Array.isArray(supplierIds)) {
-        supplierIdArray = supplierIds.map((id) =>
-          typeof id === "string" ? id : String(id)
-        );
-      } else if (typeof supplierIds === "string") {
+      if (Array.isArray(supplierIds)) supplierIdArray = supplierIds as string[];
+      else if (typeof supplierIds === "string")
         supplierIdArray = supplierIds.split(",");
-      } else {
-        supplierIdArray = [String(supplierIds)];
-      }
+      else supplierIdArray = [String(supplierIds)];
 
       supplierIdArray = supplierIdArray
         .map((id) => id.trim())
@@ -543,22 +381,17 @@ export const getOrdersByFilter = async (
       .sort({ [sortField]: sortOrder })
       .skip(skip)
       .limit(Number(limit));
+
     const total = await Order.countDocuments(query);
 
     res
       .status(200)
       .json({ orders, total, pages: Math.ceil(total / Number(limit)) });
   } catch (error: any) {
-    res
-      .status(500)
-      .json({ message: "Internal Server Error", error: error.message });
+    res.status(500).json({ message: "Internal Server Error", error: error.message });
   }
 };
 
-/**
- * STATS (Updated to include pending_review & verified)
- * totalValue still sums PAID this month
- */
 export const getOrderStats = async (req: Request, res: Response): Promise<void> => {
   try {
     const baseQuery: any = req.user?.isAdmin
@@ -568,40 +401,34 @@ export const getOrderStats = async (req: Request, res: Response): Promise<void> 
     const startOfMonth = new Date();
     startOfMonth.setDate(1);
     startOfMonth.setHours(0, 0, 0, 0);
-
     const endOfMonth = new Date();
     endOfMonth.setMonth(endOfMonth.getMonth() + 1);
     endOfMonth.setDate(0);
     endOfMonth.setHours(23, 59, 59, 999);
 
-    const notAssignedCount = await Order.countDocuments({
+    const notAssignedOrders = await Order.countDocuments({
       ...baseQuery,
       status: "not assigned",
     });
-    const assignedCount = await Order.countDocuments({
+    const assignedOrders = await Order.countDocuments({
       ...baseQuery,
       status: "assigned",
     });
-    const pendingReviewCount = await Order.countDocuments({
+    const pendingReviewOrders = await Order.countDocuments({
       ...baseQuery,
       status: "pending_review",
     });
-    const verifiedCount = await Order.countDocuments({
+    const verifiedOrders = await Order.countDocuments({
       ...baseQuery,
       status: "verified",
     });
-    // Legacy confirmed (optional)
-    const legacyConfirmedCount = await Order.countDocuments({
-      ...baseQuery,
-      status: "confirmed",
-    });
-    const paidCount = await Order.countDocuments({
+    const paidOrders = await Order.countDocuments({
       ...baseQuery,
       status: "paid",
       createdAt: { $gte: startOfMonth, $lte: endOfMonth },
     });
 
-    const totalValueResult = await Order.aggregate([
+    const totalValueAgg = await Order.aggregate([
       {
         $match: {
           ...baseQuery,
@@ -609,25 +436,18 @@ export const getOrderStats = async (req: Request, res: Response): Promise<void> 
           createdAt: { $gte: startOfMonth, $lte: endOfMonth },
         },
       },
-      {
-        $group: {
-          _id: null,
-          totalValue: { $sum: "$totalAmount" },
-        },
-      },
+      { $group: { _id: null, totalValue: { $sum: "$totalAmount" } } },
     ]);
-
     const totalValue =
-      totalValueResult.length > 0 ? totalValueResult[0].totalValue : 0;
+      totalValueAgg.length > 0 ? totalValueAgg[0].totalValue : 0;
 
     res.status(200).json({
-      notAssignedOrders: notAssignedCount,
-      assignedOrders: assignedCount,
-      pendingReviewOrders: pendingReviewCount,
-      verifiedOrders: verifiedCount + legacyConfirmedCount, // combine legacy confirmed if desired
-      paidOrders: paidCount,
+      notAssignedOrders,
+      assignedOrders,
+      pendingReviewOrders,
+      verifiedOrders,
+      paidOrders,
       totalValue: parseFloat(totalValue.toFixed(2)),
-      legacyConfirmedOrders: legacyConfirmedCount, // expose separately if you want to monitor migration
     });
   } catch (error: any) {
     res.status(500).json({
@@ -637,9 +457,6 @@ export const getOrderStats = async (req: Request, res: Response): Promise<void> 
   }
 };
 
-/**
- * SINGLE ORDER FETCH
- */
 export const getOrder = async (req: Request, res: Response): Promise<void> => {
   try {
     const orderId = req.params.orderId;
@@ -664,11 +481,6 @@ export const getOrder = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    // Normalize legacy confirmed -> verified for frontend if needed
-    if (order.status === "confirmed") {
-      (order as any).status = "verified";
-    }
-
     res.status(200).json({ order });
   } catch (error: any) {
     res
@@ -677,74 +489,51 @@ export const getOrder = async (req: Request, res: Response): Promise<void> => {
   }
 };
 
-/**
- * ANALYTICS (Extended with pending_review & verified & legacy confirmed)
- */
 export const getOrderAnalytics = async (
   req: Request,
   res: Response
 ): Promise<void> => {
   try {
     const { period = "month" } = req.query;
-
     const validPeriods = ["week", "month", "year"];
     if (!validPeriods.includes(period as string)) {
-      res.status(400).json({
-        message: "Invalid period. Use 'week', 'month', or 'year'",
-      });
+      res.status(400).json({ message: "Invalid period. Use 'week','month','year'" });
       return;
     }
 
     const totalOrders = await Order.countDocuments();
-    const notAssignedOrders = await Order.countDocuments({
-      status: "not assigned",
-    });
+    const notAssignedOrders = await Order.countDocuments({ status: "not assigned" });
     const assignedOrders = await Order.countDocuments({ status: "assigned" });
-    const pendingReviewOrders = await Order.countDocuments({
-      status: "pending_review",
-    });
-    const verifiedOrders = await Order.countDocuments({
-      status: "verified",
-    });
-    const confirmedLegacyOrders = await Order.countDocuments({
-      status: "confirmed",
-    });
+    const pendingReviewOrders = await Order.countDocuments({ status: "pending_review" });
+    const verifiedOrders = await Order.countDocuments({ status: "verified" });
     const paidOrders = await Order.countDocuments({ status: "paid" });
 
-    const totalSpending = await Order.aggregate([
+    const totalSpendingAgg = await Order.aggregate([
       { $match: { status: "paid" } },
       { $group: { _id: null, total: { $sum: "$totalAmount" } } },
     ]);
+    const totalSpent = totalSpendingAgg.length ? totalSpendingAgg[0].total : 0;
 
-    const totalSpent = totalSpending.length > 0 ? totalSpending[0].total : 0;
-
+    // Period aggregation
     let groupStage: any = {};
     let sortStage: any = {};
     let limitCount = 12;
     let periodLabel: any = {};
 
     if (period === "week") {
-      groupStage = {
-        _id: {
-          year: { $year: "$createdAt" },
-          week: { $week: "$createdAt" },
-        },
+      groupStage._id = {
+        year: { $year: "$createdAt" },
+        week: { $week: "$createdAt" },
       };
       sortStage = { "_id.year": -1, "_id.week": -1 };
       limitCount = 8;
       periodLabel = {
-        $concat: [
-          { $toString: "$_id.year" },
-          "-W",
-          { $toString: "$_id.week" },
-        ],
+        $concat: [{ $toString: "$_id.year" }, "-W", { $toString: "$_id.week" }],
       };
     } else if (period === "month") {
-      groupStage = {
-        _id: {
-          year: { $year: "$createdAt" },
-          month: { $month: "$createdAt" },
-        },
+      groupStage._id = {
+        year: { $year: "$createdAt" },
+        month: { $month: "$createdAt" },
       };
       sortStage = { "_id.year": -1, "_id.month": -1 };
       limitCount = 12;
@@ -762,17 +551,12 @@ export const getOrderAnalytics = async (
         ],
       };
     } else {
-      groupStage = {
-        _id: {
-          year: { $year: "$createdAt" },
-        },
-      };
+      groupStage._id = { year: { $year: "$createdAt" } };
       sortStage = { "_id.year": -1 };
       limitCount = 5;
       periodLabel = { $toString: "$_id.year" };
     }
 
-    // Aggregations per period
     groupStage.totalOrders = { $sum: 1 };
     groupStage.totalSpent = {
       $sum: {
@@ -791,9 +575,6 @@ export const getOrderAnalytics = async (
     groupStage.verifiedOrders = {
       $sum: { $cond: [{ $eq: ["$status", "verified"] }, 1, 0] },
     };
-    groupStage.confirmedLegacyOrders = {
-      $sum: { $cond: [{ $eq: ["$status", "confirmed"] }, 1, 0] },
-    };
     groupStage.paidOrders = {
       $sum: { $cond: [{ $eq: ["$status", "paid"] }, 1, 0] },
     };
@@ -802,23 +583,18 @@ export const getOrderAnalytics = async (
       { $group: groupStage },
       { $sort: sortStage },
       { $limit: limitCount },
-      {
-        $addFields: {
-          periodLabel: periodLabel,
-        },
-      },
+      { $addFields: { periodLabel } },
       {
         $project: {
-          _id: 1,
-            periodLabel: 1,
-            totalOrders: 1,
-            totalSpent: 1,
-            notAssignedOrders: 1,
-            assignedOrders: 1,
-            pendingReviewOrders: 1,
-            verifiedOrders: 1,
-            confirmedLegacyOrders: 1,
-            paidOrders: 1,
+          _id: 0,
+          periodLabel: 1,
+          totalOrders: 1,
+          totalSpent: 1,
+          notAssignedOrders: 1,
+          assignedOrders: 1,
+          pendingReviewOrders: 1,
+          verifiedOrders: 1,
+          paidOrders: 1,
         },
       },
     ]);
@@ -831,8 +607,7 @@ export const getOrderAnalytics = async (
         notAssignedOrders,
         assignedOrders,
         pendingReviewOrders,
-        verifiedOrders: verifiedOrders + confirmedLegacyOrders,
-        confirmedLegacyOrders,
+        verifiedOrders,
         paidOrders,
         totalSpent,
       },
@@ -840,8 +615,6 @@ export const getOrderAnalytics = async (
       data: periodData,
     });
   } catch (error: any) {
-    res
-      .status(500)
-      .json({ message: "Internal Server Error", error: error.message });
+    res.status(500).json({ message: "Internal Server Error", error: error.message });
   }
 };

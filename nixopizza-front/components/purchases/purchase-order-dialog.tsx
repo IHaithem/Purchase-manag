@@ -1,4 +1,3 @@
-// components/purchase/purchase-order-dialog.tsx
 "use client";
 
 import {
@@ -21,12 +20,17 @@ import {
   Phone,
   CheckCircle,
   Upload,
+  ShieldCheck,
 } from "lucide-react";
 import { useState } from "react";
 import { Label } from "@radix-ui/react-label";
 import { Input } from "../ui/input";
 import { IOrder } from "@/app/dashboard/purchases/page";
-import { updateOrder, confirmOrder } from "@/lib/apis/purchase-list";
+import {
+  submitForReview,
+  verifyOrder,
+  markOrderPaid,
+} from "@/lib/apis/purchase-list";
 import toast from "react-hot-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { resolveImage } from "@/lib/resolveImage";
@@ -35,7 +39,7 @@ interface PurchaseOrderDialogProps {
   order: IOrder | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  setPurchaseOrders: any;
+  setPurchaseOrders: (updater: (prev: IOrder[]) => IOrder[]) => void;
 }
 
 export function PurchaseOrderDialog({
@@ -46,8 +50,14 @@ export function PurchaseOrderDialog({
 }: PurchaseOrderDialogProps) {
   if (!order) return null;
   const { user } = useAuth();
+
+  // Local bill file if uploading under assigned state
   const [billFile, setBillFile] = useState<File | null>(null);
   const [billPreview, setBillPreview] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [verifying, setVerifying] = useState(false);
+  const [markingPaid, setMarkingPaid] = useState(false);
+  const [totalAmountOverride, setTotalAmountOverride] = useState<string>("");
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -55,10 +65,14 @@ export function PurchaseOrderDialog({
         return "secondary";
       case "assigned":
         return "default";
-      case "confirmed":
+      case "pending_review":
+        return "outline";
+      case "verified":
         return "default";
       case "paid":
         return "default";
+      case "canceled":
+        return "destructive";
       default:
         return "secondary";
     }
@@ -66,17 +80,13 @@ export function PurchaseOrderDialog({
 
   const handleBillUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      if (
-        !file.type.match("image.*") &&
-        !file.type.match("application/pdf")
-      ) {
-        toast.error("Please select an image or PDF file");
-        return;
-      }
-      setBillFile(file);
-      setBillPreview(URL.createObjectURL(file));
+    if (!file) return;
+    if (!file.type.match("image.*") && !file.type.match("application/pdf")) {
+      toast.error("Please select an image or PDF file");
+      return;
     }
+    setBillFile(file);
+    setBillPreview(URL.createObjectURL(file));
   };
 
   const removeBill = () => {
@@ -84,53 +94,92 @@ export function PurchaseOrderDialog({
     setBillPreview(null);
   };
 
-  const hasBill = !!order.bon;
-
   const applyOrderUpdateLocal = (updatedOrder: IOrder) => {
-    if (setPurchaseOrders) {
-      setPurchaseOrders((prev: IOrder[]) =>
-        prev.map((o) => (o._id === updatedOrder._id ? updatedOrder : o))
-      );
-    }
+    setPurchaseOrders((prev) =>
+      prev.map((o) => (o._id === updatedOrder._id ? updatedOrder : o))
+    );
   };
 
-  const handleConfirmOrder = async () => {
+  // Submit for review (assigned -> pending_review)
+  const handleSubmitForReview = async () => {
     if (order.status !== "assigned") {
-      toast.error("Only assigned orders can be confirmed");
+      toast.error("Order must be assigned first");
       return;
     }
-
-    const formData = new FormData();
-    if (billFile) formData.append("image", billFile);
-
-    const { success, order: updatedOrder, message } = await confirmOrder(
-      order._id,
-      formData
-    );
-    if (success && updatedOrder) {
-      toast.success("Order confirmed successfully");
-      applyOrderUpdateLocal(updatedOrder);
-      onOpenChange(false);
-    } else {
-      toast.error(message || "Failed to confirm order");
+    if (!billFile) {
+      toast.error("Upload bill before submitting for review");
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const fd = new FormData();
+      fd.append("image", billFile);
+      if (totalAmountOverride) {
+        fd.append("totalAmount", totalAmountOverride);
+      }
+      const { success, order: updated, message } = await submitForReview(
+        order._id,
+        fd
+      );
+      if (success && updated) {
+        toast.success("Submitted for review");
+        applyOrderUpdateLocal(updated);
+        onOpenChange(false);
+      } else {
+        toast.error(message || "Failed to submit for review");
+      }
+    } catch (e) {
+      toast.error("Error submitting for review");
+    } finally {
+      setSubmitting(false);
     }
   };
 
-  const handleConfirmPaid = async () => {
-    if (order.status !== "confirmed") {
-      toast.error("Order must be confirmed first");
+  // Verify (pending_review -> verified) admin only
+  const handleVerifyOrder = async () => {
+    if (order.status !== "pending_review") {
+      toast.error("Order must be pending review to verify");
       return;
     }
-    const { success, order: updatedOrder, message } = await updateOrder(
-      order._id,
-      { status: "paid" }
-    );
-    if (success && updatedOrder) {
-      toast.success("Order marked as paid");
-      applyOrderUpdateLocal(updatedOrder);
-      onOpenChange(false);
-    } else {
-      toast.error(message || "Failed to mark order as paid");
+    setVerifying(true);
+    try {
+      const { success, order: updated, message } = await verifyOrder(order._id);
+      if (success && updated) {
+        toast.success("Order verified");
+        applyOrderUpdateLocal(updated);
+        onOpenChange(false);
+      } else {
+        toast.error(message || "Failed to verify order");
+      }
+    } catch (e) {
+      toast.error("Error verifying order");
+    } finally {
+      setVerifying(false);
+    }
+  };
+
+  // Mark paid (verified -> paid)
+  const handleMarkPaid = async () => {
+    if (order.status !== "verified") {
+      toast.error("Order must be verified before marking paid");
+      return;
+    }
+    setMarkingPaid(true);
+    try {
+      const { success, order: updated, message } = await markOrderPaid(
+        order._id
+      );
+      if (success && updated) {
+        toast.success("Order marked paid");
+        applyOrderUpdateLocal(updated);
+        onOpenChange(false);
+      } else {
+        toast.error(message || "Failed to mark paid");
+      }
+    } catch (e) {
+      toast.error("Error marking paid");
+    } finally {
+      setMarkingPaid(false);
     }
   };
 
@@ -149,41 +198,43 @@ export function PurchaseOrderDialog({
 
         <div className="space-y-6">
           {/* Summary */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <Card>
-              <CardContent className="p-4">
-                <div className="text-sm text-muted-foreground">Order ID</div>
-                <div className="font-mono font-medium">{order.orderNumber}</div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="p-4">
-                <div className="text-sm text-muted-foreground">Status</div>
-                <Badge variant={getStatusColor(order.status) as any}>
-                  {order.status}
-                </Badge>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="p-4">
-                <div className="text-sm text-muted-foreground">Total Value</div>
-                <div className="font-medium flex items-center gap-1">
-                  {order.totalAmount.toFixed(2)} DA
-                </div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="p-4">
-                <div className="text-sm text-muted-foreground">Paid Date</div>
-                <div className="font-medium flex items-center gap-1">
-                  <Calendar className="h-3 w-3" />
-                  {order.paidDate
-                    ? new Date(order.paidDate).toLocaleDateString("en-GB")
-                    : "N/A"}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <Card>
+                <CardContent className="p-4">
+                  <div className="text-sm text-muted-foreground">Order ID</div>
+                  <div className="font-mono font-medium">
+                    {order.orderNumber}
+                  </div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="p-4">
+                  <div className="text-sm text-muted-foreground">Status</div>
+                  <Badge variant={getStatusColor(order.status) as any}>
+                    {order.status}
+                  </Badge>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="p-4">
+                  <div className="text-sm text-muted-foreground">Total Value</div>
+                  <div className="font-medium flex items-center gap-1">
+                    {order.totalAmount.toFixed(2)} DA
+                  </div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="p-4">
+                  <div className="text-sm text-muted-foreground">Paid Date</div>
+                  <div className="font-medium flex items-center gap-1">
+                    <Calendar className="h-3 w-3" />
+                    {order.paidDate
+                      ? new Date(order.paidDate).toLocaleDateString("en-GB")
+                      : "N/A"}
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
 
           {/* Supplier */}
           <Card>
@@ -274,7 +325,7 @@ export function PurchaseOrderDialog({
             </CardContent>
           </Card>
 
-          {/* Bill */}
+          {/* Bill / Upload / Amount Override */}
           <Card>
             <CardHeader>
               <CardTitle className="font-heading flex items-center gap-2">
@@ -287,7 +338,7 @@ export function PurchaseOrderDialog({
                 <div className="space-y-4">
                   <div className="flex items-center gap-4">
                     <div className="p-2 bg-muted rounded-lg">
-                      {order.bon.endsWith(".pdf") ? (
+                      {order.bon.toLowerCase().endsWith(".pdf") ? (
                         <span className="text-red-500 font-medium">PDF</span>
                       ) : (
                         <img
@@ -313,7 +364,7 @@ export function PurchaseOrderDialog({
                     View Bill
                   </Button>
                 </div>
-              ) : (
+              ) : order.status === "assigned" ? (
                 <div className="space-y-4">
                   <div className="flex items-center gap-4">
                     {billPreview ? (
@@ -362,52 +413,94 @@ export function PurchaseOrderDialog({
                       />
                     </div>
                   </div>
+
+                  <div className="space-y-2 pt-2">
+                    <Label htmlFor="override-amount" className="text-xs">
+                      Override Total Amount (optional)
+                    </Label>
+                    <Input
+                      id="override-amount"
+                      type="number"
+                      min={0}
+                      step="0.01"
+                      value={totalAmountOverride}
+                      onChange={(e) => setTotalAmountOverride(e.target.value)}
+                      placeholder={order.totalAmount.toFixed(2)}
+                    />
+                  </div>
                 </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  No bill available for this state.
+                </p>
               )}
             </CardContent>
           </Card>
 
           {/* Actions */}
-          <div className="flex gap-2 justify-end">
+          <div className="flex flex-wrap gap-2 justify-end">
             {order.status === "assigned" && (
-              <>
-                {order.bon ? (
-                  <Button
-                    className="gap-2 bg-green-600 text-white hover:bg-green-700"
-                    onClick={handleConfirmOrder}
-                  >
-                    <CheckCircle className="h-4 w-4" />
-                    Confirm Order
-                  </Button>
-                ) : billFile ? (
-                  <Button
-                    className="gap-2 bg-green-600 text-white hover:bg-green-700"
-                    onClick={handleConfirmOrder}
-                  >
-                    <CheckCircle className="h-4 w-4" />
-                    Confirm Order
-                  </Button>
+              <Button
+                className="gap-2 bg-blue-600 text-white hover:bg-blue-700"
+                disabled={!billFile || submitting}
+                onClick={handleSubmitForReview}
+              >
+                {submitting ? (
+                  <>
+                    <CheckCircle className="h-4 w-4 animate-spin" />
+                    Submitting...
+                  </>
                 ) : (
-                  <Button variant="outline" disabled>
+                  <>
                     <CheckCircle className="h-4 w-4" />
-                    Upload Bill First
-                  </Button>
+                    Submit for Review
+                  </>
                 )}
-              </>
+              </Button>
             )}
 
-            {order.status === "confirmed" && user?.role === "admin" && (
+            {order.status === "pending_review" && user?.role === "admin" && (
               <Button
                 className="gap-2 bg-green-600 text-white hover:bg-green-700"
-                onClick={handleConfirmPaid}
+                disabled={verifying}
+                onClick={handleVerifyOrder}
               >
-                <CheckCircle className="h-4 w-4" />
-                Confirm Paid
+                {verifying ? (
+                  <>
+                    <ShieldCheck className="h-4 w-4 animate-spin" />
+                    Verifying...
+                  </>
+                ) : (
+                  <>
+                    <ShieldCheck className="h-4 w-4" />
+                    Verify Order
+                  </>
+                )}
+              </Button>
+            )}
+
+            {order.status === "verified" && user?.role === "admin" && (
+              <Button
+                className="gap-2 bg-emerald-600 text-white hover:bg-emerald-700"
+                disabled={markingPaid}
+                onClick={handleMarkPaid}
+              >
+                {markingPaid ? (
+                  <>
+                    <DollarSign className="h-4 w-4 animate-spin" />
+                    Marking...
+                  </>
+                ) : (
+                  <>
+                    <DollarSign className="h-4 w-4" />
+                    Mark Paid
+                  </>
+                )}
               </Button>
             )}
 
             {order.status === "paid" && (
-              <Button variant="outline" disabled>
+              <Button variant="outline" disabled className="gap-2">
                 <CheckCircle className="h-4 w-4" />
                 Order Paid
               </Button>

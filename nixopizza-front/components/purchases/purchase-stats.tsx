@@ -1,66 +1,91 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ShoppingCart, Clock, CheckCircle, DollarSign } from "lucide-react";
+import { getOrdersStats } from "@/lib/apis/purchase-list";
+import { Clock, CheckCircle, DollarSign, Eye } from "lucide-react";
+import { useEffect, useState } from "react";
+import toast from "react-hot-toast";
 
-type PurchaseStatsProps = {
-  pendingOrders: number;
-  confirmedOrders: number;
-  paidOrders: number;
-  totalValue: number;
-};
+export function PurchaseStats() {
+  const [stats, setStats] = useState({
+    notAssignedOrders: 0,
+    assignedOrders: 0,
+    pendingReviewOrders: 0,
+    verifiedOrders: 0,
+    paidOrders: 0,
+    totalValue: 0,
+  });
 
-export function PurchaseStats({
-  pendingOrders,
-  confirmedOrders,
-  paidOrders,
-  totalValue,
-}: PurchaseStatsProps) {
+  useEffect(() => {
+    const fetchStats = async () => {
+      const response = await getOrdersStats();
+      if (response.success) {
+        const {
+          notAssignedOrders = 0,
+          assignedOrders = 0,
+          pendingReviewOrders = 0,
+          verifiedOrders = 0,
+          paidOrders = 0,
+          totalValue = 0,
+        } = response;
+        setStats({
+          notAssignedOrders,
+          assignedOrders,
+          pendingReviewOrders,
+          verifiedOrders,
+          paidOrders,
+          totalValue,
+        });
+      } else {
+        toast.error(response.message || "Failed to fetch order stats");
+      }
+    };
+    fetchStats();
+  }, []);
+
+  const pendingTotal = stats.notAssignedOrders + stats.assignedOrders;
+
   return (
     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-      {/* Pending Orders */}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium">Pending Orders</CardTitle>
+          <CardTitle className="text-sm font-medium">Pending (Not Assigned + Assigned)</CardTitle>
           <Clock className="h-4 w-4 text-muted-foreground" />
         </CardHeader>
         <CardContent>
-          <div className="text-2xl font-bold">{pendingOrders}</div>
-          <p className="text-xs text-muted-foreground">Awaiting processing</p>
+          <div className="text-2xl font-bold">{pendingTotal}</div>
+          <p className="text-xs text-muted-foreground">Awaiting bill submission</p>
         </CardContent>
       </Card>
 
-      {/* Confirmed Orders */}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium">Confirmed Orders</CardTitle>
-          <CheckCircle className="h-4 w-4 text-blue-600" />
+          <CardTitle className="text-sm font-medium">Pending Review</CardTitle>
+          <Eye className="h-4 w-4 text-blue-600" />
         </CardHeader>
         <CardContent>
-          <div className="text-2xl font-bold text-blue-600">{confirmedOrders}</div>
-          <p className="text-xs text-muted-foreground">Ready for fulfillment</p>
+          <div className="text-2xl font-bold text-blue-600">{stats.pendingReviewOrders}</div>
+          <p className="text-xs text-muted-foreground">Bill uploaded, waiting verification</p>
         </CardContent>
       </Card>
 
-      {/* Paid Orders */}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium">Paid Orders</CardTitle>
-          <DollarSign className="h-4 w-4 text-green-600" />
+          <CardTitle className="text-sm font-medium">Verified Orders</CardTitle>
+          <CheckCircle className="h-4 w-4 text-green-600" />
         </CardHeader>
         <CardContent>
-          <div className="text-2xl font-bold text-green-600">{paidOrders}</div>
-          <p className="text-xs text-muted-foreground">Payment received</p>
+          <div className="text-2xl font-bold text-green-600">{stats.verifiedOrders}</div>
+          <p className="text-xs text-muted-foreground">Inventory updated</p>
         </CardContent>
       </Card>
 
-      {/* Total Value */}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium">Total Value</CardTitle>
-          <ShoppingCart className="h-4 w-4 text-muted-foreground" />
+          <CardTitle className="text-sm font-medium">Total Paid Value (This Month)</CardTitle>
+          <DollarSign className="h-4 w-4 text-muted-foreground" />
         </CardHeader>
         <CardContent>
-          <div className="text-2xl font-bold">{totalValue.toFixed(2)} DA</div>
-          <p className="text-xs text-muted-foreground">For current filters</p>
+          <div className="text-2xl font-bold">{stats.totalValue.toFixed(2)} DA</div>
+          <p className="text-xs text-muted-foreground">Paid orders this month</p>
         </CardContent>
       </Card>
     </div>
