@@ -33,7 +33,7 @@ export interface IOrder {
   status: "not assigned" | "assigned" | "pending_review" | "verified" | "paid" | "canceled";
   totalAmount: number;
   items: {
-    _id?: string;              // ProductOrder document id (ensure it's populated)
+    _id?: string;
     productId: {
       name: string;
       _id: string;
@@ -60,6 +60,7 @@ export interface IOrder {
 
 export default function PurchasesPage() {
   const searchParams = useSearchParams();
+
   const [allPurchaseOrders, setAllPurchaseOrders] = useState<IOrder[]>([]);
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("all");
@@ -88,8 +89,8 @@ export default function PurchasesPage() {
     const fetchOrders = async () => {
       const params: any = {
         orderNumber: search,
-        page: currentPage,
-        limit: 1000,
+        page: 1,
+        limit: 1000, // large batch for client-side filtering
         sortBy: sort.sortBy,
         order: sort.order,
       };
@@ -98,31 +99,46 @@ export default function PurchasesPage() {
       }
       const { orders, success, message } = await getOrders(params);
       if (success) {
-        setAllPurchaseOrders(orders);
+        setAllPurchaseOrders(orders as IOrder[]);
       } else {
         toast.error(message || "Failed to fetch orders");
       }
     };
     fetchOrders();
-  }, [search, supplierIds, sort, refreshTrigger, currentPage]);
+  }, [search, supplierIds, sort, refreshTrigger]);
 
+  // Client-side filtering (status, supplier, date, search)
   const filteredOrders = useMemo(() => {
-    let filtered = [...allPurchaseOrders];
+    let list = [...allPurchaseOrders];
+
     if (dateRange.from || dateRange.to) {
-      filtered = filtered.filter((order) => {
-        const orderDate = new Date(order.createdAt);
-        if (dateRange.from && orderDate < dateRange.from) return false;
-        if (dateRange.to && orderDate > dateRange.to) return false;
+      list = list.filter(order => {
+        const d = new Date(order.createdAt);
+        if (dateRange.from && d < dateRange.from) return false;
+        if (dateRange.to && d > dateRange.to) return false;
         return true;
       });
     }
-    if (status !== "all") {
-      const statusArray = status.split(",").map((s) => s.trim());
-      filtered = filtered.filter((o) => statusArray.includes(o.status));
-    }
-    return filtered;
-  }, [allPurchaseOrders, dateRange, status]);
 
+    if (status !== "all") {
+      const statusSet = status.split(",").map(s => s.trim());
+      list = list.filter(o => statusSet.includes(o.status));
+    }
+
+    if (supplierIds.length > 0) {
+      list = list.filter(o => supplierIds.includes(o.supplierId._id));
+    }
+
+    if (search.trim()) {
+      list = list.filter(o =>
+        o.orderNumber.toLowerCase().includes(search.toLowerCase())
+      );
+    }
+
+    return list;
+  }, [allPurchaseOrders, dateRange, status, supplierIds, search]);
+
+  // Pagination based on filteredOrders
   const paginatedOrders = useMemo(() => {
     const startIndex = (currentPage - 1) * limit;
     const endIndex = startIndex + limit;
@@ -131,11 +147,21 @@ export default function PurchasesPage() {
     return filteredOrders.slice(startIndex, endIndex);
   }, [filteredOrders, currentPage, limit]);
 
+  const filtersActive = useMemo(
+    () =>
+      status !== "all" ||
+      supplierIds.length > 0 ||
+      search.trim() !== "" ||
+      dateRange.from !== null ||
+      dateRange.to !== null,
+    [status, supplierIds, search, dateRange]
+  );
+
   const addingNewOrder = (newOrder: IOrder) => {
-    setAllPurchaseOrders((prev) => [newOrder, ...prev]);
+    setAllPurchaseOrders(prev => [newOrder, ...prev]);
   };
 
-  const handleRefresh = () => setRefreshTrigger((p) => p + 1);
+  const handleRefresh = () => setRefreshTrigger(prev => prev + 1);
 
   return (
     <DashboardLayout>
@@ -151,7 +177,12 @@ export default function PurchasesPage() {
           initialStatus={status}
           initialDateRange={dateRange}
         />
-        <PurchaseStats/>
+
+        <PurchaseStats
+          filteredOrders={filteredOrders}
+          filtersActive={filtersActive}
+        />
+
         <PurchaseListsTable
           setPurchaseOrders={setAllPurchaseOrders}
           purchaseOrders={paginatedOrders}
