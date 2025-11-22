@@ -83,7 +83,6 @@ export function ManualOrderDialog({ addNewOrder }: ManualOrderDialogProps) {
     }
     setLoading(true);
     try {
-      // Build FormData for potential future file attachments (bill optional)
       const formData = new FormData();
       formData.append("supplierId", supplierId);
       formData.append("notes", notes);
@@ -91,7 +90,6 @@ export function ManualOrderDialog({ addNewOrder }: ManualOrderDialogProps) {
         formData.append("expectedDate", expectedDate.toISOString());
       }
 
-      // Items: send as JSON string
       const payloadItems = items.map((it) => ({
         productId: it.productId,
         quantity: it.quantity,
@@ -149,7 +147,6 @@ export function ManualOrderDialog({ addNewOrder }: ManualOrderDialogProps) {
           </DialogHeader>
 
           <div className="space-y-6">
-            {/* Supplier */}
             <div className="space-y-2">
               <Label>Supplier ID *</Label>
               <Input
@@ -159,7 +156,6 @@ export function ManualOrderDialog({ addNewOrder }: ManualOrderDialogProps) {
               />
             </div>
 
-            {/* Expected Date */}
             <div className="space-y-2">
               <Label>Expected Date (optional)</Label>
               <Input
@@ -177,7 +173,6 @@ export function ManualOrderDialog({ addNewOrder }: ManualOrderDialogProps) {
               />
             </div>
 
-            {/* Notes */}
             <div className="space-y-2">
               <Label>Notes (optional)</Label>
               <Input
@@ -187,7 +182,6 @@ export function ManualOrderDialog({ addNewOrder }: ManualOrderDialogProps) {
               />
             </div>
 
-            {/* Items */}
             <div className="space-y-3">
               <div className="flex justify-between items-center">
                 <Label>Items *</Label>
