@@ -1,19 +1,23 @@
-// controllers/order.controller.ts (confirmed fully removed)
+// controllers/order.controller.ts
+// Flow: not assigned -> assigned -> pending_review -> verified -> paid (canceled allowed before verified)
+// Includes item editing in submitOrderForReview (assigned -> pending_review)
+// Removes deprecated execPopulate usage (Mongoose >=6)
+
 import { Request, Response } from "express";
 import Product from "../models/product.model";
 import Order from "../models/order.model";
-import ProductOrder from "./productOrder.controller";
+import ProductOrder from "../models/productOrder.model"; // ensure this path points to the ProductOrder model
 import { deleteImage } from "../utils/Delete";
 import crypto from "crypto";
 import { uploadBufferToBlob } from "../utils/blob";
 
-const generateOrderNumber = () => {
+const generateOrderNumber = (): string => {
   const date = new Date().toISOString().split("T")[0].replace(/-/g, "");
   const rand = Math.floor(1000 + Math.random() * 9000);
   return `ORD-${date}-${rand}`;
 };
 
-const buildBlobKey = (originalName: string) => {
+const buildBlobKey = (originalName: string): string => {
   const ext = (originalName.match(/\.[^/.]+$/) || [".bin"])[0];
   const unique = crypto.randomBytes(8).toString("hex");
   return `${Date.now()}-${unique}${ext}`;
@@ -21,25 +25,25 @@ const buildBlobKey = (originalName: string) => {
 
 async function populateOrder(orderDoc: any) {
   if (!orderDoc) return orderDoc;
-  return await orderDoc
-    .populate([
-      { path: "staffId", select: "avatar email fullname" },
-      {
-        path: "supplierId",
-        select:
-          "email name image contactPerson address phone1 phone2 phone3 city",
+  await orderDoc.populate([
+    { path: "staffId", select: "avatar email fullname" },
+    {
+      path: "supplierId",
+      select:
+        "email name image contactPerson address phone1 phone2 phone3 city",
+    },
+    {
+      path: "items",
+      populate: {
+        path: "productId",
+        select: "name currentStock imageUrl barcode",
       },
-      {
-        path: "items",
-        populate: {
-          path: "productId",
-          select: "name currentStock imageUrl barcode",
-        },
-      },
-    ])
-    .execPopulate?.();
+    },
+  ]);
+  return orderDoc;
 }
 
+/* ------------------------- CREATE ORDER ------------------------- */
 export const createOrder = async (req: Request, res: Response): Promise<void> => {
   try {
     const {
@@ -50,7 +54,7 @@ export const createOrder = async (req: Request, res: Response): Promise<void> =>
     }: {
       items: { productId: string; quantity: number; unitCost: number; expirationDate: Date }[];
       supplierId: string;
-      notes: string;
+      notes?: string;
       expectedDate?: Date;
     } = req.body;
 
@@ -59,23 +63,23 @@ export const createOrder = async (req: Request, res: Response): Promise<void> =>
       return;
     }
 
-    const productOrdersPromises = items.map(
-      async ({ productId, quantity, unitCost, expirationDate }) => {
-        const product = await Product.findById(productId);
-        if (!product) throw new Error("Product not found");
-        const productOrder = await ProductOrder.create({
-          productId,
-            quantity,
-            unitCost,
-            expirationDate,
-            remainingQte: quantity,
-        });
-        await productOrder.save();
-        return productOrder._id;
+    const productOrdersIds: string[] = [];
+    for (const { productId, quantity, unitCost, expirationDate } of items) {
+      const product = await Product.findById(productId);
+      if (!product) {
+        res.status(404).json({ message: `Product not found: ${productId}` });
+        return;
       }
-    );
 
-    const productOrders = await Promise.all(productOrdersPromises);
+      const productOrder = await ProductOrder.create({
+        productId,
+        quantity,
+        unitCost,
+        expirationDate,
+        remainingQte: quantity,
+      });
+      productOrdersIds.push(productOrder._id.toString());
+    }
 
     const totalAmount = items.reduce(
       (sum, item) => sum + item.unitCost * item.quantity,
@@ -83,7 +87,7 @@ export const createOrder = async (req: Request, res: Response): Promise<void> =>
     );
 
     const order = new Order({
-      items: productOrders,
+      items: productOrdersIds,
       supplierId,
       status: "not assigned",
       totalAmount,
@@ -106,65 +110,142 @@ export const createOrder = async (req: Request, res: Response): Promise<void> =>
     const populated = await populateOrder(order);
     res
       .status(201)
-      .json({ message: "Order created successfully", order: populated || order });
+      .json({ message: "Order created successfully", order: populated });
   } catch (error: any) {
-    res.status(500).json({ message: "Internal server error", error: error.message });
+    res
+      .status(500)
+      .json({ message: "Internal server error", error: error.message });
   }
 };
 
+/* ------------------------- ASSIGN ORDER ------------------------- */
 export const assignOrder = async (req: Request, res: Response): Promise<void> => {
   try {
     const orderId = req.params.orderId;
     const { staffId } = req.body;
+
     if (!staffId) {
       res.status(400).json({ message: "Staff ID is required" });
       return;
     }
+
     const order = await Order.findById(orderId);
     if (!order) {
       res.status(404).json({ message: "Order not found" });
       return;
     }
+
     if (order.status !== "not assigned") {
-      res.status(400).json({ message: "Order is already assigned or progressed" });
+      res
+        .status(400)
+        .json({ message: "Order is already assigned or progressed" });
       return;
     }
+
     order.staffId = staffId;
     order.status = "assigned";
     order.assignedDate = new Date();
     await order.save();
+
     const populated = await populateOrder(order);
-    res.status(200).json({ message: "Order assigned successfully", order: populated || order });
+    res
+      .status(200)
+      .json({ message: "Order assigned successfully", order: populated });
   } catch (error: any) {
-    res.status(500).json({ message: "Internal Server Error", error: error.message });
+    res
+      .status(500)
+      .json({ message: "Internal Server Error", error: error.message });
   }
 };
 
-// Step 1: assigned -> pending_review
-export const submitOrderForReview = async (req: Request, res: Response): Promise<void> => {
+/* ------------- SUBMIT FOR REVIEW (assigned -> pending_review) ------------- */
+/* Supports item quantity/unitCost adjustments via itemsUpdates JSON */
+export const submitOrderForReview = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
   try {
     const orderId = req.params.orderId;
     const { totalAmount } = req.body;
+
+    // Parse itemsUpdates (array of { itemId, quantity, unitCost })
+    let itemsUpdates: { itemId: string; quantity: number; unitCost: number }[] =
+      [];
+    if (req.body.itemsUpdates) {
+      try {
+        itemsUpdates = JSON.parse(req.body.itemsUpdates);
+      } catch {
+        res.status(400).json({ message: "Invalid itemsUpdates JSON format" });
+        return;
+      }
+    }
+
     const order = await Order.findById(orderId).populate({
       path: "items",
       populate: { path: "productId" },
     });
+
     if (!order) {
       res.status(404).json({ message: "Order not found" });
       return;
     }
     if (order.status !== "assigned") {
-      res.status(400).json({ message: "Order must be assigned first" });
+      res
+        .status(400)
+        .json({ message: "Order must be assigned before submitting for review" });
       return;
     }
     if (!req.file) {
-      res.status(400).json({ message: "Bill file required" });
+      res.status(400).json({ message: "Bill file is required" });
       return;
     }
 
-    if (order.bon && order.bon.startsWith("/uploads/orders/")) {
-      try { deleteImage(order.bon); } catch {}
+    // Validate & apply item updates
+    if (itemsUpdates.length) {
+      const validItemIds = new Set(
+        order.items.map((it: any) => it._id.toString())
+      );
+      for (const upd of itemsUpdates) {
+        if (!validItemIds.has(upd.itemId)) {
+          res
+            .status(400)
+            .json({ message: `Invalid productOrder itemId: ${upd.itemId}` });
+          return;
+        }
+        if (upd.quantity <= 0 || upd.unitCost < 0) {
+          res
+            .status(400)
+            .json({ message: "Quantity must be > 0 and unitCost >= 0" });
+          return;
+        }
+      }
+
+      for (const upd of itemsUpdates) {
+        const po: any = await ProductOrder.findById(upd.itemId);
+        if (!po) continue;
+        po.quantity = upd.quantity;
+        po.unitCost = upd.unitCost;
+        po.remainingQte = upd.quantity;
+        await po.save();
+      }
+
+      // Refresh order items after updates
+      const refreshed = await Order.findById(orderId).populate({
+        path: "items",
+        populate: { path: "productId" },
+      });
+      if (refreshed) {
+        (order as any).items = refreshed.items;
+      }
     }
+
+    // Replace legacy stored file if needed
+    if (order.bon && order.bon.startsWith("/uploads/orders/")) {
+      try {
+        deleteImage(order.bon);
+      } catch {}
+    }
+
     const key = buildBlobKey(req.file.originalname);
     const uploaded = await uploadBufferToBlob(
       key,
@@ -173,24 +254,33 @@ export const submitOrderForReview = async (req: Request, res: Response): Promise
     );
     order.bon = uploaded.url;
 
-    if (totalAmount) {
-      order.totalAmount = parseFloat(totalAmount);
+    // Recompute total unless overridden
+    let computedTotal = 0;
+    for (const item of order.items) {
+      const po: any = await ProductOrder.findById((item as any)._id);
+      if (po) computedTotal += po.quantity * po.unitCost;
     }
+    order.totalAmount = totalAmount
+      ? parseFloat(totalAmount)
+      : parseFloat(computedTotal.toFixed(2));
 
     order.status = "pending_review";
     order.pendingReviewDate = new Date();
-
     await order.save();
+
     const populated = await populateOrder(order);
-    res
-      .status(200)
-      .json({ message: "Order submitted for review", order: populated || order });
+    res.status(200).json({
+      message: "Order submitted for review",
+      order: populated,
+    });
   } catch (error: any) {
-    res.status(500).json({ message: "Internal Server Error", error: error.message });
+    res
+      .status(500)
+      .json({ message: "Internal Server Error", error: error.message });
   }
 };
 
-// Step 2: pending_review -> verified (inventory updated now)
+/* ------------- VERIFY ORDER (pending_review -> verified) ------------- */
 export const verifyOrder = async (req: Request, res: Response): Promise<void> => {
   try {
     const orderId = req.params.orderId;
@@ -198,12 +288,15 @@ export const verifyOrder = async (req: Request, res: Response): Promise<void> =>
       path: "items",
       populate: { path: "productId" },
     });
+
     if (!order) {
       res.status(404).json({ message: "Order not found" });
       return;
     }
     if (order.status !== "pending_review") {
-      res.status(400).json({ message: "Order must be pending_review to verify" });
+      res
+        .status(400)
+        .json({ message: "Order must be pending_review to verify" });
       return;
     }
     if (!order.bon) {
@@ -211,12 +304,13 @@ export const verifyOrder = async (req: Request, res: Response): Promise<void> =>
       return;
     }
 
-    for (const itemId of order.items) {
-      const productOrder: any = await ProductOrder.findById(itemId);
-      if (productOrder) {
-        const product = await Product.findById(productOrder.productId);
+    // Update inventory now
+    for (const item of order.items) {
+      const po: any = await ProductOrder.findById((item as any)._id);
+      if (po) {
+        const product = await Product.findById(po.productId);
         if (product) {
-          product.currentStock += productOrder.quantity;
+          product.currentStock += po.quantity;
           await product.save();
         }
       }
@@ -224,17 +318,20 @@ export const verifyOrder = async (req: Request, res: Response): Promise<void> =>
 
     order.status = "verified";
     order.verifiedDate = new Date();
-
     await order.save();
+
     const populated = await populateOrder(order);
     res
       .status(200)
-      .json({ message: "Order verified successfully", order: populated || order });
+      .json({ message: "Order verified successfully", order: populated });
   } catch (error: any) {
-    res.status(500).json({ message: "Internal Server Error", error: error.message });
+    res
+      .status(500)
+      .json({ message: "Internal Server Error", error: error.message });
   }
 };
 
+/* ------------------------- UPDATE ORDER ------------------------- */
 export const updateOrder = async (req: Request, res: Response): Promise<void> => {
   try {
     const orderId = req.params.orderId;
@@ -249,9 +346,11 @@ export const updateOrder = async (req: Request, res: Response): Promise<void> =>
       "canceled",
     ];
     if (status && !validStatuses.includes(status)) {
-      res.status(400).json({
-        message: `Invalid status. Use one of: ${validStatuses.join(", ")}`,
-      });
+      res
+        .status(400)
+        .json({
+          message: `Invalid status. Use one of: ${validStatuses.join(", ")}`,
+        });
       return;
     }
 
@@ -266,34 +365,39 @@ export const updateOrder = async (req: Request, res: Response): Promise<void> =>
 
     if (status === "paid") {
       if (order.status !== "verified") {
-        res.status(400).json({ message: "Order must be verified before paid" });
+        res
+          .status(400)
+          .json({ message: "Order must be verified before paid" });
         return;
       }
       order.status = "paid";
       order.paidDate = new Date();
     } else if (status === "canceled") {
-      // Only allow cancel before verification
       if (["verified", "paid"].includes(order.status)) {
-        res.status(400).json({ message: "Cannot cancel a verified or paid order" });
+        res
+          .status(400)
+          .json({ message: "Cannot cancel a verified or paid order" });
         return;
       }
       order.status = "canceled";
       order.canceledDate = canceledDate ? new Date(canceledDate) : new Date();
     } else if (status && status !== order.status) {
-      // Allow simple forward transitions (e.g., not assigned -> assigned)
       order.status = status;
       if (status === "assigned") order.assignedDate = new Date();
       if (status === "pending_review") order.pendingReviewDate = new Date();
-      if (status === "verified") order.verifiedDate = new Date();
+      if (status === "verified") order.verifiedDate = new Date(); // (not typical; verify via endpoint)
     }
 
     if (expectedDate !== undefined) {
-      order.expectedDate = expectedDate ? new Date(expectedDate) : undefined;
+      order.expectedDate =
+        expectedDate !== null ? new Date(expectedDate) : undefined;
     }
 
     if (req.file) {
       if (order.bon && order.bon.startsWith("/uploads/orders/")) {
-        try { deleteImage(order.bon); } catch {}
+        try {
+          deleteImage(order.bon);
+        } catch {}
       }
       const key = buildBlobKey(req.file.originalname);
       const uploaded = await uploadBufferToBlob(
@@ -312,16 +416,19 @@ export const updateOrder = async (req: Request, res: Response): Promise<void> =>
     const populated = await populateOrder(order);
     res
       .status(200)
-      .json({ message: "Order updated successfully", order: populated || order });
+      .json({ message: "Order updated successfully", order: populated });
   } catch (error: any) {
-    res.status(500).json({
-      message: "Internal Server Error",
-      error: error.message,
-    });
+    res
+      .status(500)
+      .json({ message: "Internal Server Error", error: error.message });
   }
 };
 
-export const getOrdersByFilter = async (req: Request, res: Response): Promise<void> => {
+/* ------------------------- FILTER ORDERS ------------------------- */
+export const getOrdersByFilter = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
   try {
     const {
       orderNumber,
@@ -335,7 +442,9 @@ export const getOrdersByFilter = async (req: Request, res: Response): Promise<vo
     } = req.query;
 
     if (Number(page) < 1 || Number(limit) < 1) {
-      res.status(400).json({ message: "Page and limit must be > 0" });
+      res
+        .status(400)
+        .json({ message: "Page and limit must be > 0" });
       return;
     }
 
@@ -388,15 +497,19 @@ export const getOrdersByFilter = async (req: Request, res: Response): Promise<vo
       .limit(Number(limit));
 
     const total = await Order.countDocuments(query);
-
-    res
-      .status(200)
-      .json({ orders, total, pages: Math.ceil(total / Number(limit)) });
+    res.status(200).json({
+      orders,
+      total,
+      pages: Math.ceil(total / Number(limit)),
+    });
   } catch (error: any) {
-    res.status(500).json({ message: "Internal Server Error", error: error.message });
+    res
+      .status(500)
+      .json({ message: "Internal Server Error", error: error.message });
   }
 };
 
+/* ------------------------- ORDER STATS ------------------------- */
 export const getOrderStats = async (req: Request, res: Response): Promise<void> => {
   try {
     const baseQuery: any = req.user?.isAdmin
@@ -462,6 +575,7 @@ export const getOrderStats = async (req: Request, res: Response): Promise<void> 
   }
 };
 
+/* ------------------------- GET SINGLE ORDER ------------------------- */
 export const getOrder = async (req: Request, res: Response): Promise<void> => {
   try {
     const orderId = req.params.orderId;
@@ -494,6 +608,7 @@ export const getOrder = async (req: Request, res: Response): Promise<void> => {
   }
 };
 
+/* ------------------------- ORDER ANALYTICS ------------------------- */
 export const getOrderAnalytics = async (
   req: Request,
   res: Response
@@ -502,14 +617,20 @@ export const getOrderAnalytics = async (
     const { period = "month" } = req.query;
     const validPeriods = ["week", "month", "year"];
     if (!validPeriods.includes(period as string)) {
-      res.status(400).json({ message: "Invalid period. Use 'week','month','year'" });
+      res
+        .status(400)
+        .json({ message: "Invalid period. Use 'week','month','year'" });
       return;
     }
 
     const totalOrders = await Order.countDocuments();
-    const notAssignedOrders = await Order.countDocuments({ status: "not assigned" });
+    const notAssignedOrders = await Order.countDocuments({
+      status: "not assigned",
+    });
     const assignedOrders = await Order.countDocuments({ status: "assigned" });
-    const pendingReviewOrders = await Order.countDocuments({ status: "pending_review" });
+    const pendingReviewOrders = await Order.countDocuments({
+      status: "pending_review",
+    });
     const verifiedOrders = await Order.countDocuments({ status: "verified" });
     const paidOrders = await Order.countDocuments({ status: "paid" });
 
@@ -517,9 +638,9 @@ export const getOrderAnalytics = async (
       { $match: { status: "paid" } },
       { $group: { _id: null, total: { $sum: "$totalAmount" } } },
     ]);
-    const totalSpent = totalSpendingAgg.length ? totalSpendingAgg[0].total : 0;
+    const totalSpent =
+      totalSpendingAgg.length > 0 ? totalSpendingAgg[0].total : 0;
 
-    // Period aggregation
     let groupStage: any = {};
     let sortStage: any = {};
     let limitCount = 12;
@@ -620,6 +741,8 @@ export const getOrderAnalytics = async (
       data: periodData,
     });
   } catch (error: any) {
-    res.status(500).json({ message: "Internal Server Error", error: error.message });
+    res
+      .status(500)
+      .json({ message: "Internal Server Error", error: error.message });
   }
 };

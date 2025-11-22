@@ -1,7 +1,8 @@
-import { Document, Schema, model } from "mongoose";
+import { Schema, model, Types, HydratedDocument } from "mongoose";
 
-export interface IProductOrder extends Document {
-  productId: Schema.Types.ObjectId;
+export interface IProductOrder {
+  _id: Types.ObjectId;
+  productId: Types.ObjectId;
   quantity: number;
   expirationDate: Date;
   unitCost: number;
@@ -11,6 +12,8 @@ export interface IProductOrder extends Document {
   createdAt: Date;
   updatedAt: Date;
 }
+
+export type ProductOrderDocument = HydratedDocument<IProductOrder>;
 
 const productOrderSchema = new Schema<IProductOrder>(
   {
@@ -22,6 +25,7 @@ const productOrderSchema = new Schema<IProductOrder>(
     quantity: {
       type: Number,
       required: [true, "Product Quantity is Required"],
+      min: 0,
     },
     expirationDate: {
       type: Date,
@@ -29,9 +33,12 @@ const productOrderSchema = new Schema<IProductOrder>(
     unitCost: {
       type: Number,
       required: [true, "Product Price is Required"],
+      min: 0,
     },
     remainingQte: {
       type: Number,
+      default: 0,
+      min: 0,
     },
     isExpired: {
       type: Boolean,
@@ -40,6 +47,7 @@ const productOrderSchema = new Schema<IProductOrder>(
     expiredQuantity: {
       type: Number,
       default: 0,
+      min: 0,
     },
   },
   {
@@ -47,7 +55,7 @@ const productOrderSchema = new Schema<IProductOrder>(
   }
 );
 
-// Add index for efficient expiration queries
+// Index for efficient expiration queries
 productOrderSchema.index({ expirationDate: 1, isExpired: 1 });
 
 const ProductOrder = model<IProductOrder>("ProductOrder", productOrderSchema);

@@ -28,12 +28,18 @@ export const assignOrder = async (orderId: string, staffId: string) => {
 };
 
 // Step 1: assigned -> pending_review
-export const submitForReview = async (orderId: string, formData: FormData) => {
+// submitForReview updated to include itemsUpdates in FormData
+export const submitForReview = async (
+  orderId: string,
+  formData: FormData
+) => {
   try {
     const { data } = await axiosAPI.post(`/orders/${orderId}/review`, formData);
     return { success: true, order: data.order };
   } catch (error: any) {
-    return { success: false, message: error.response?.data?.message || "Failed to submit for review" };
+    const message =
+      error.response?.data?.message || "Failed to submit for review";
+    return { success: false, message };
   }
 };
 

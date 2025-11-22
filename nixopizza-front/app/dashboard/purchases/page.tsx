@@ -33,11 +33,12 @@ export interface IOrder {
   status: "not assigned" | "assigned" | "pending_review" | "verified" | "paid" | "canceled";
   totalAmount: number;
   items: {
+    _id?: string;              // ProductOrder document id (ensure it's populated)
     productId: {
       name: string;
       _id: string;
-      imageUrl: string;
-      barcode: string;
+      imageUrl?: string;
+      barcode?: string;
     };
     quantity: number;
     expirationDate: Date;
