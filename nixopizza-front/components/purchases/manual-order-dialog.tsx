@@ -83,6 +83,7 @@ export function ManualOrderDialog({ addNewOrder }: ManualOrderDialogProps) {
     }
     setLoading(true);
     try {
+      // Build FormData for potential future file attachments (bill optional)
       const formData = new FormData();
       formData.append("supplierId", supplierId);
       formData.append("notes", notes);
@@ -90,6 +91,7 @@ export function ManualOrderDialog({ addNewOrder }: ManualOrderDialogProps) {
         formData.append("expectedDate", expectedDate.toISOString());
       }
 
+      // Items: send as JSON string
       const payloadItems = items.map((it) => ({
         productId: it.productId,
         quantity: it.quantity,
