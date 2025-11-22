@@ -12,13 +12,14 @@ import { cn } from "@/lib/utils";
 
 interface IOrder {
   _id: string;
-  status: "not assigned" | "assigned" | "confirmed" | "paid" | "canceled";
+  status: "not assigned" | "assigned" | "pending_review" | "verified" | "paid" | "canceled";
   createdAt: string;
   supplierId: {
     name: string;
     image: string;
     _id: string;
   };
+
 }
 
 export default function StaffDashboardPage() {

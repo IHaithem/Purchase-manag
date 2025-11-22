@@ -33,28 +33,46 @@ export const assignOrder = async (orderId: string, staffId: string) => {
   }
 };
 
-// Explicit confirm (with bill)
-export const confirmOrder = async (orderId: string, formData: FormData) => {
+// New: submit for review (assigned -> pending_review) with bill and total
+export const submitForReview = async (orderId: string, formData: FormData) => {
   try {
-    const { data } = await axiosAPI.post(`/orders/${orderId}/confirm`, formData);
+    const { data } = await axiosAPI.post(`/orders/${orderId}/review`, formData);
     return { success: true, order: data.order };
   } catch (error: any) {
-    const message = error.response?.data?.message || "Failed to confirm order";
+    const message = error.response?.data?.message || "Failed to submit for review";
     return { success: false, message };
   }
 };
 
-// Generic update (paid, canceled, expectedDate changes, fallback confirmation)
+// New: verify (pending_review -> verified)
+export const verifyOrder = async (orderId: string) => {
+  try {
+    const { data } = await axiosAPI.post(`/orders/${orderId}/verify`);
+    return { success: true, order: data.order };
+  } catch (error: any) {
+    const message = error.response?.data?.message || "Failed to verify order";
+    return { success: false, message };
+  }
+};
+
+// New: paid (verified -> paid)
+export const markOrderPaid = async (orderId: string) => {
+  try {
+    const { data } = await axiosAPI.put(`/orders/${orderId}`, { status: "paid" });
+    return { success: true, order: data.order };
+  } catch (error: any) {
+    const message = error.response?.data?.message || "Failed to mark order paid";
+    return { success: false, message };
+  }
+};
+
+// Generic update (kept for other fields like expectedDate or cancel)
 export const updateOrder = async (orderId: string, body: any | FormData) => {
   try {
     const isFormData = body instanceof FormData;
-    const { data } = await axiosAPI.put(
-      `/orders/${orderId}`,
-      body,
-      isFormData
-        ? { headers: { "Content-Type": "multipart/form-data" } }
-        : undefined
-    );
+    const { data } = await axiosAPI.put(`/orders/${orderId}`, body, {
+      headers: isFormData ? { "Content-Type": "multipart/form-data" } : {},
+    });
     return { success: true, order: data.order };
   } catch (error: any) {
     const message = error.response?.data?.message || "Failed to update order";
@@ -62,11 +80,11 @@ export const updateOrder = async (orderId: string, body: any | FormData) => {
   }
 };
 
-// Stats (404 fix)
-export const getOrderStats = async () => {
+// Stats
+export const getOrdersStats = async () => {
   try {
     const { data } = await axiosAPI.get("/orders/stats");
-    return { success: true, stats: data };
+    return { success: true, ...data };
   } catch (error: any) {
     const message = error.response?.data?.message || "Failed to fetch order stats";
     return { success: false, message };

@@ -1,4 +1,4 @@
-// models/order.model.ts
+// models/order.model.ts (UPDATED)
 import mongoose, { Schema, Document } from "mongoose";
 
 export interface IOrder extends Document {
@@ -6,24 +6,25 @@ export interface IOrder extends Document {
   orderNumber: string;
   supplierId: Schema.Types.ObjectId;
   staffId: Schema.Types.ObjectId;
-  status: "not assigned" | "assigned" | "confirmed" | "paid" | "canceled";
+  status: "not assigned" | "assigned" | "pending_review" | "verified" | "paid" | "canceled";
   totalAmount: number;
   items: Schema.Types.ObjectId[];
   notes: string;
   createdAt: Date;
   updatedAt: Date;
-  paidDate: Date;
-  assignedDate: Date;
-  confirmedDate: Date;
+  assignedDate?: Date;
+  pendingReviewDate?: Date;
+  verifiedDate?: Date;
+  paidDate?: Date;
   expectedDate?: Date;
   canceledDate?: Date;
+  // Legacy field for backward compatibility during migration
+  confirmedDate?: Date;
 }
 
 const orderSchema = new Schema<IOrder>(
   {
-    bon: {
-      type: String,
-    },
+    bon: { type: String },
 
     orderNumber: {
       type: String,
@@ -44,7 +45,14 @@ const orderSchema = new Schema<IOrder>(
 
     status: {
       type: String,
-      enum: ["not assigned", "assigned", "confirmed", "paid", "canceled"],
+      enum: [
+        "not assigned",
+        "assigned",
+        "pending_review",
+        "verified",
+        "paid",
+        "canceled",
+      ],
       default: "not assigned",
     },
 
@@ -59,36 +67,21 @@ const orderSchema = new Schema<IOrder>(
       ref: "ProductOrder",
       minlength: 1,
     },
-    
-    notes: {
-      type: String,
-    },
 
-    assignedDate: {
-      type: Date,
-    },
+    notes: { type: String },
 
-    confirmedDate: {
-      type: Date,
-    },
+    assignedDate: { type: Date },
+    pendingReviewDate: { type: Date },
+    verifiedDate: { type: Date },
+    paidDate: { type: Date },
+    expectedDate: { type: Date },
+    canceledDate: { type: Date },
 
-    paidDate: {
-      type: Date,
-    },
-
-    expectedDate: {
-      type: Date,
-    },
-
-    canceledDate: {
-      type: Date,
-    },
+    // Legacy field (optional cleanup later)
+    confirmedDate: { type: Date },
   },
-  {
-    timestamps: true,
-  }
+  { timestamps: true }
 );
 
 const Order = mongoose.model<IOrder>("Order", orderSchema);
-
 export default Order;
