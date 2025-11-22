@@ -28,6 +28,7 @@ import {
   UserPlus,
   CheckCircle,
   DollarSign,
+  XCircle,
 } from "lucide-react";
 import { PurchaseOrderDialog } from "@/components/purchases/purchase-order-dialog";
 import { ReceiptPreviewDialog } from "./receipt-preview-dialog";
@@ -39,6 +40,8 @@ import { useAuth } from "@/hooks/useAuth";
 import { SubmitReviewDialog } from "./submit-review-dialog";
 import { VerifyOrderDialog } from "./verify-order-dialog";
 import { MarkPaidDialog } from "./mark-paid-dialog";
+import { updateOrder } from "@/lib/apis/purchase-list";
+import toast from "react-hot-toast";
 
 export function PurchaseListsTable({
   purchaseOrders,
@@ -66,6 +69,7 @@ export function PurchaseListsTable({
   const [isSubmitDialogOpen, setIsSubmitDialogOpen] = useState(false);
   const [isVerifyDialogOpen, setIsVerifyDialogOpen] = useState(false);
   const [isMarkPaidDialogOpen, setIsMarkPaidDialogOpen] = useState(false);
+  const [isCancelLoading, setIsCancelLoading] = useState(false);
 
   const { user } = useAuth();
 
@@ -113,47 +117,107 @@ export function PurchaseListsTable({
     console.log("Exporting order:", orderId);
   };
 
+  const handleCancelOrder = async (order: IOrder) => {
+    if (!["not assigned", "assigned", "pending_review"].includes(order.status)) {
+      toast.error("You can only cancel before verification.");
+      return;
+    }
+    setIsCancelLoading(true);
+    try {
+      const { success, order: updated, message } = await updateOrder(order._id, {
+        status: "canceled",
+        canceledDate: new Date().toISOString(),
+      });
+      if (success && updated) {
+        toast.success("Order canceled");
+        handleOrderUpdated(updated);
+      } else {
+        toast.error(message || "Failed to cancel order");
+      }
+    } catch (e) {
+      toast.error("Error canceling order");
+    } finally {
+      setIsCancelLoading(false);
+    }
+  };
+
   const getStatusAction = (order: IOrder) => {
     switch (order.status) {
       case "not assigned":
         return (
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => handleAssignStaff(order)}
-            className="gap-2"
-          >
-            <UserPlus className="h-3 w-3" />
-            Assign
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => handleAssignStaff(order)}
+              className="gap-2"
+            >
+              <UserPlus className="h-3 w-3" />
+              Assign
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={isCancelLoading}
+              className="gap-2 border-red-600 text-red-600 hover:bg-red-50"
+              onClick={() => handleCancelOrder(order)}
+            >
+              <XCircle className="h-3 w-3" />
+              {isCancelLoading ? "Canceling..." : "Cancel"}
+            </Button>
+          </div>
         );
       case "assigned":
         return (
-          <Button
-            size="sm"
-            className="gap-2 bg-orange-600 text-white hover:bg-orange-700"
-            onClick={() => {
-              setSelectedOrder(order);
-              setIsSubmitDialogOpen(true);
-            }}
-          >
-            <CheckCircle className="h-3 w-3" />
-            Submit Bill
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              size="sm"
+              className="gap-2 bg-orange-600 text-white hover:bg-orange-700"
+              onClick={() => {
+                setSelectedOrder(order);
+                setIsSubmitDialogOpen(true);
+              }}
+            >
+              <CheckCircle className="h-3 w-3" />
+              Submit Bill
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={isCancelLoading}
+              className="gap-2 border-red-600 text-red-600 hover:bg-red-50"
+              onClick={() => handleCancelOrder(order)}
+            >
+              <XCircle className="h-3 w-3" />
+              {isCancelLoading ? "Canceling..." : "Cancel"}
+            </Button>
+          </div>
         );
       case "pending_review":
         return user?.role === "admin" ? (
-          <Button
-            size="sm"
-            className="gap-2 bg-orange-600 text-white hover:bg-orange-700"
-            onClick={() => {
-              setSelectedOrder(order);
-              setIsVerifyDialogOpen(true);
-            }}
-          >
-            <CheckCircle className="h-3 w-3" />
-            Verify
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              size="sm"
+              className="gap-2 bg-orange-600 text-white hover:bg-orange-700"
+              onClick={() => {
+                setSelectedOrder(order);
+                setIsVerifyDialogOpen(true);
+              }}
+            >
+              <CheckCircle className="h-3 w-3" />
+              Verify
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={isCancelLoading}
+              className="gap-2 border-red-600 text-red-600 hover:bg-red-50"
+              onClick={() => handleCancelOrder(order)}
+            >
+              <XCircle className="h-3 w-3" />
+              {isCancelLoading ? "Canceling..." : "Cancel"}
+            </Button>
+          </div>
         ) : (
           <Badge variant="outline">Waiting Verification</Badge>
         );
@@ -348,7 +412,6 @@ export function PurchaseListsTable({
             </Table>
           </div>
 
-          {/* Pagination */}
           <div className="mt-6 flex flex-col sm:flex-row items-center justify-between gap-4">
             <div className="text-sm text-muted-foreground">
               Showing {purchaseOrders.length} of {totalPages * limit} orders
@@ -382,7 +445,6 @@ export function PurchaseListsTable({
         onOpenChange={setIsAssignDialogOpen}
         onOrderUpdated={handleOrderUpdated}
       />
-
       <SubmitReviewDialog
         order={selectedOrder}
         open={isSubmitDialogOpen}

@@ -21,6 +21,7 @@ import {
   CheckCircle,
   Upload,
   ShieldCheck,
+  XCircle,
 } from "lucide-react";
 import { useState } from "react";
 import { Label } from "@radix-ui/react-label";
@@ -30,6 +31,7 @@ import {
   submitForReview,
   verifyOrder,
   markOrderPaid,
+  updateOrder,
 } from "@/lib/apis/purchase-list";
 import toast from "react-hot-toast";
 import { useAuth } from "@/hooks/useAuth";
@@ -51,12 +53,12 @@ export function PurchaseOrderDialog({
   if (!order) return null;
   const { user } = useAuth();
 
-  // Local bill file if uploading under assigned state
   const [billFile, setBillFile] = useState<File | null>(null);
   const [billPreview, setBillPreview] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [verifying, setVerifying] = useState(false);
   const [markingPaid, setMarkingPaid] = useState(false);
+  const [canceling, setCanceling] = useState(false);
   const [totalAmountOverride, setTotalAmountOverride] = useState<string>("");
 
   const getStatusColor = (status: string) => {
@@ -100,7 +102,6 @@ export function PurchaseOrderDialog({
     );
   };
 
-  // Submit for review (assigned -> pending_review)
   const handleSubmitForReview = async () => {
     if (order.status !== "assigned") {
       toast.error("Order must be assigned first");
@@ -128,14 +129,13 @@ export function PurchaseOrderDialog({
       } else {
         toast.error(message || "Failed to submit for review");
       }
-    } catch (e) {
+    } catch {
       toast.error("Error submitting for review");
     } finally {
       setSubmitting(false);
     }
   };
 
-  // Verify (pending_review -> verified) admin only
   const handleVerifyOrder = async () => {
     if (order.status !== "pending_review") {
       toast.error("Order must be pending review to verify");
@@ -151,14 +151,13 @@ export function PurchaseOrderDialog({
       } else {
         toast.error(message || "Failed to verify order");
       }
-    } catch (e) {
+    } catch {
       toast.error("Error verifying order");
     } finally {
       setVerifying(false);
     }
   };
 
-  // Mark paid (verified -> paid)
   const handleMarkPaid = async () => {
     if (order.status !== "verified") {
       toast.error("Order must be verified before marking paid");
@@ -166,9 +165,7 @@ export function PurchaseOrderDialog({
     }
     setMarkingPaid(true);
     try {
-      const { success, order: updated, message } = await markOrderPaid(
-        order._id
-      );
+      const { success, order: updated, message } = await markOrderPaid(order._id);
       if (success && updated) {
         toast.success("Order marked paid");
         applyOrderUpdateLocal(updated);
@@ -176,10 +173,35 @@ export function PurchaseOrderDialog({
       } else {
         toast.error(message || "Failed to mark paid");
       }
-    } catch (e) {
+    } catch {
       toast.error("Error marking paid");
     } finally {
       setMarkingPaid(false);
+    }
+  };
+
+  const handleCancelOrder = async () => {
+    if (!["not assigned", "assigned", "pending_review"].includes(order.status)) {
+      toast.error("Cannot cancel after verification.");
+      return;
+    }
+    setCanceling(true);
+    try {
+      const { success, order: updated, message } = await updateOrder(order._id, {
+        status: "canceled",
+        canceledDate: new Date().toISOString(),
+      });
+      if (success && updated) {
+        toast.success("Order canceled");
+        applyOrderUpdateLocal(updated);
+        onOpenChange(false);
+      } else {
+        toast.error(message || "Failed to cancel order");
+      }
+    } catch {
+      toast.error("Error canceling order");
+    } finally {
+      setCanceling(false);
     }
   };
 
@@ -197,46 +219,42 @@ export function PurchaseOrderDialog({
         </DialogHeader>
 
         <div className="space-y-6">
-          {/* Summary */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <Card>
-                <CardContent className="p-4">
-                  <div className="text-sm text-muted-foreground">Order ID</div>
-                  <div className="font-mono font-medium">
-                    {order.orderNumber}
-                  </div>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent className="p-4">
-                  <div className="text-sm text-muted-foreground">Status</div>
-                  <Badge variant={getStatusColor(order.status) as any}>
-                    {order.status}
-                  </Badge>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent className="p-4">
-                  <div className="text-sm text-muted-foreground">Total Value</div>
-                  <div className="font-medium flex items-center gap-1">
-                    {order.totalAmount.toFixed(2)} DA
-                  </div>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent className="p-4">
-                  <div className="text-sm text-muted-foreground">Paid Date</div>
-                  <div className="font-medium flex items-center gap-1">
-                    <Calendar className="h-3 w-3" />
-                    {order.paidDate
-                      ? new Date(order.paidDate).toLocaleDateString("en-GB")
-                      : "N/A"}
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <Card>
+              <CardContent className="p-4">
+                <div className="text-sm text-muted-foreground">Order ID</div>
+                <div className="font-mono font-medium">{order.orderNumber}</div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-4">
+                <div className="text-sm text-muted-foreground">Status</div>
+                <Badge variant={getStatusColor(order.status) as any}>
+                  {order.status}
+                </Badge>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-4">
+                <div className="text-sm text-muted-foreground">Total Value</div>
+                <div className="font-medium flex items-center gap-1">
+                  {order.totalAmount.toFixed(2)} DA
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-4">
+                <div className="text-sm text-muted-foreground">Paid Date</div>
+                <div className="font-medium flex items-center gap-1">
+                  <Calendar className="h-3 w-3" />
+                  {order.paidDate
+                    ? new Date(order.paidDate).toLocaleDateString("en-GB")
+                    : "N/A"}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
 
-          {/* Supplier */}
           <Card>
             <CardHeader>
               <CardTitle className="font-heading flex items-center gap-2">
@@ -280,7 +298,6 @@ export function PurchaseOrderDialog({
             </CardContent>
           </Card>
 
-          {/* Items */}
           <Card>
             <CardHeader>
               <CardTitle className="font-heading">Order Items</CardTitle>
@@ -325,7 +342,6 @@ export function PurchaseOrderDialog({
             </CardContent>
           </Card>
 
-          {/* Bill / Upload / Amount Override */}
           <Card>
             <CardHeader>
               <CardTitle className="font-heading flex items-center gap-2">
@@ -358,7 +374,9 @@ export function PurchaseOrderDialog({
                   <Button
                     variant="outline"
                     className="gap-2"
-                    onClick={() => window.open(resolveImage(order.bon), "_blank")}
+                    onClick={() =>
+                      window.open(resolveImage(order.bon), "_blank")
+                    }
                   >
                     <Download className="h-4 w-4" />
                     View Bill
@@ -437,8 +455,19 @@ export function PurchaseOrderDialog({
             </CardContent>
           </Card>
 
-          {/* Actions */}
           <div className="flex flex-wrap gap-2 justify-end">
+            {["not assigned", "assigned", "pending_review"].includes(order.status) && (
+              <Button
+                variant="outline"
+                disabled={canceling}
+                className="gap-2 border-red-600 text-red-600 hover:bg-red-50"
+                onClick={handleCancelOrder}
+              >
+                <XCircle className="h-4 w-4" />
+                {canceling ? "Canceling..." : "Cancel"}
+              </Button>
+            )}
+
             {order.status === "assigned" && (
               <Button
                 className="gap-2 bg-blue-600 text-white hover:bg-blue-700"
@@ -503,6 +532,13 @@ export function PurchaseOrderDialog({
               <Button variant="outline" disabled className="gap-2">
                 <CheckCircle className="h-4 w-4" />
                 Order Paid
+              </Button>
+            )}
+
+            {order.status === "canceled" && (
+              <Button variant="outline" disabled className="gap-2">
+                <XCircle className="h-4 w-4" />
+                Order Canceled
               </Button>
             )}
           </div>

@@ -272,6 +272,11 @@ export const updateOrder = async (req: Request, res: Response): Promise<void> =>
       order.status = "paid";
       order.paidDate = new Date();
     } else if (status === "canceled") {
+      // Only allow cancel before verification
+      if (["verified", "paid"].includes(order.status)) {
+        res.status(400).json({ message: "Cannot cancel a verified or paid order" });
+        return;
+      }
       order.status = "canceled";
       order.canceledDate = canceledDate ? new Date(canceledDate) : new Date();
     } else if (status && status !== order.status) {
