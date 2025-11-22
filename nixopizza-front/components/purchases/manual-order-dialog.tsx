@@ -1,309 +1,519 @@
+// components/purchases/manual-order-dialog.tsx
 "use client";
 
-import { useState } from "react";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-} from "@/components/ui/dialog";
+import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Plus, Package, X, Loader2 } from "lucide-react";
-import toast from "react-hot-toast";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Plus,
+  Package,
+  Trash2,
+  AlertCircle,
+  Loader2,
+  Upload,
+  X,
+} from "lucide-react";
 import { createOrder } from "@/lib/apis/purchase-list";
+import { ProductSelect } from "@/components/ui/product-select";
+import { SupplierSelect } from "@/components/ui/supplier-select";
+import { getProducts } from "@/lib/apis/products";
+import { IProduct } from "@/app/dashboard/products/page";
+import { ISupplier } from "@/app/dashboard/suppliers/page";
 import { IOrder } from "@/app/dashboard/purchases/page";
+import toast from "react-hot-toast";
+import { resolveImage } from "@/lib/resolveImage";
 
-interface ManualOrderDialogProps {
-  addNewOrder: (order: IOrder) => void;
-}
-
-type OrderItemDraft = {
+interface IOrderItem {
+  _id?: string;
   productId: string;
-  name: string;
   quantity: number;
   unitCost: number;
-  expirationDate?: Date | null;
-};
+  expirationDate: Date;
+  remainingQte?: number;
+  isExpired?: boolean;
+  expiredQuantity?: number;
+  createdAt?: Date;
+  updatedAt?: Date;
+}
 
-export function ManualOrderDialog({ addNewOrder }: ManualOrderDialogProps) {
+export function ManualOrderDialog({
+  addNewOrder,
+}: {
+  addNewOrder: (newOrder: IOrder) => void;
+}) {
   const [open, setOpen] = useState(false);
-  const [supplierId, setSupplierId] = useState("");
+  const [selectedSupplier, setSelectedSupplier] = useState<ISupplier | null>(
+    null
+  );
+  const [orderItems, setOrderItems] = useState<IOrderItem[]>([
+    { productId: "", quantity: 1, unitCost: 0, expirationDate: new Date() },
+  ]);
   const [notes, setNotes] = useState("");
-  const [expectedDate, setExpectedDate] = useState<Date | null>(null);
-  const [items, setItems] = useState<OrderItemDraft[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [expectedDate, setExpectedDate] = useState<string>("");
+  const [billFile, setBillFile] = useState<File | null>(null);
+  const [billPreview, setBillPreview] = useState<string | null>(null);
 
-  const addItem = () => {
-    setItems((prev) => [
-      ...prev,
-      { productId: "", name: "", quantity: 1, unitCost: 0 },
+  // Products state
+  const [products, setProducts] = useState<IProduct[]>([]);
+  const [filteredProducts, setFilteredProducts] = useState<IProduct[]>([]);
+  const [selectedProducts, setSelectedProducts] = useState<(IProduct | null)[]>([
+    null,
+  ]);
+  const [isLoadingProducts, setIsLoadingProducts] = useState(true);
+
+  // Submission/Error state
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Fetch products on mount
+  useEffect(() => {
+    const fetchProducts = async () => {
+      try {
+        setIsLoadingProducts(true);
+        const response = await getProducts();
+
+        if (response && Array.isArray(response.products)) {
+          setProducts(response.products);
+        } else if (response && Array.isArray(response)) {
+          setProducts(response);
+        } else {
+          console.error("Unexpected response format:", response);
+          setProducts([]);
+        }
+      } catch (err) {
+        console.error("Error fetching products:", err);
+        setProducts([]);
+        setError("Failed to load products. Please refresh the page.");
+      } finally {
+        setIsLoadingProducts(false);
+      }
+    };
+    fetchProducts();
+  }, []);
+
+  // Filter products based on supplier categories
+  useEffect(() => {
+    if (selectedSupplier && selectedSupplier.categoryIds) {
+      const filtered = products.filter((product) => {
+        const productCategoryId =
+          typeof product.categoryId === "object"
+            ? (product.categoryId as any)?._id
+            : (product as any).categoryId;
+        return selectedSupplier.categoryIds.includes(productCategoryId);
+      });
+      setFilteredProducts(filtered);
+      setSelectedProducts(orderItems.map(() => null));
+      setOrderItems((prev) =>
+        prev.map((item) => ({ ...item, productId: "" }))
+      );
+    } else {
+      setFilteredProducts([]);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedSupplier, products]);
+
+  const addOrderItem = () => {
+    setOrderItems((items) => [
+      ...items,
+      { productId: "", quantity: 1, unitCost: 0, expirationDate: new Date() },
     ]);
+    setSelectedProducts((prev) => [...prev, null]);
   };
 
-  const updateItem = (
+  const removeOrderItem = (index: number) => {
+    if (orderItems.length <= 1) return;
+    setOrderItems(orderItems.filter((_, i) => i !== index));
+    setSelectedProducts(selectedProducts.filter((_, i) => i !== index));
+  };
+
+  const updateOrderItem = (
     index: number,
-    field: keyof OrderItemDraft,
-    value: any
+    field: keyof IOrderItem,
+    value: string | number | Date
   ) => {
-    setItems((prev) =>
-      prev.map((it, i) => (i === index ? { ...it, [field]: value } : it))
-    );
+    setOrderItems((prev) => {
+      const updated = [...prev];
+      updated[index] = { ...updated[index], [field]: value };
+      return updated;
+    });
   };
 
-  const removeItem = (index: number) => {
-    setItems((prev) => prev.filter((_, i) => i !== index));
+  // IMPORTANT FIX: ProductSelect expects 'onSelect', not 'onProductChange'
+    const handleProductSelect = (index: number, product: any | null) => {
+      const updatedSelectedProducts = [...selectedProducts];
+      // Cast the incoming product to IProduct | null to satisfy the selectedProducts state type
+      updatedSelectedProducts[index] = product as IProduct | null;
+      setSelectedProducts(updatedSelectedProducts);
+  
+      updateOrderItem(index, "productId", product ? (product as IProduct)._id : "");
+    };
+
+  const handleSupplierChange = (supplier: ISupplier | null) => {
+    setSelectedSupplier(supplier);
+    if (supplier) setError(null);
   };
 
-  const reset = () => {
-    setSupplierId("");
-    setNotes("");
-    setExpectedDate(null);
-    setItems([]);
-    setLoading(false);
+  const handleBillUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (
+        !file.type.match("image.*") &&
+        !file.type.match("application/pdf")
+      ) {
+        toast.error("Please select an image or PDF file");
+        return;
+      }
+      setBillFile(file);
+      setBillPreview(URL.createObjectURL(file));
+    }
   };
 
-  const canSubmit =
-    supplierId &&
-    items.length > 0 &&
-    items.every(
-      (it) =>
-        it.productId.trim() &&
-        it.quantity > 0 &&
-        it.unitCost >= 0
-    );
+  const removeBill = () => {
+    setBillFile(null);
+    setBillPreview(null);
+  };
 
-  const handleCreate = async () => {
-    if (!canSubmit) {
-      toast.error("Please fill supplier and all item fields.");
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!selectedSupplier) {
+      setError("Please select a supplier");
       return;
     }
-    setLoading(true);
-    try {
-      // Build FormData for potential future file attachments (bill optional)
-      const formData = new FormData();
-      formData.append("supplierId", supplierId);
-      formData.append("notes", notes);
-      if (expectedDate) {
-        formData.append("expectedDate", expectedDate.toISOString());
-      }
-
-      // Items: send as JSON string
-      const payloadItems = items.map((it) => ({
-        productId: it.productId,
-        quantity: it.quantity,
-        unitCost: it.unitCost,
-        expirationDate: it.expirationDate
-          ? it.expirationDate.toISOString()
-          : undefined,
-      }));
-      formData.append("items", JSON.stringify(payloadItems));
-
-      const { success, order, message } = await createOrder(formData);
-      if (success && order) {
-        toast.success("Order created");
-        addNewOrder(order);
-        setOpen(false);
-        reset();
-      } else {
-        toast.error(message || "Failed to create order");
-      }
-    } catch (e) {
-      console.error(e);
-      toast.error("Error creating order");
-    } finally {
-      setLoading(false);
+    if (orderItems.length === 0) {
+      setError("Please add at least one order item");
+      return;
     }
+    if (orderItems.some((item) => !item.productId)) {
+      setError("Please select products for all order items");
+      return;
+    }
+
+    setIsSubmitting(true);
+    setError(null);
+
+    try {
+      const dataToSend = new FormData();
+      dataToSend.append("supplierId", selectedSupplier._id);
+      dataToSend.append("notes", notes);
+
+      if (expectedDate) {
+        dataToSend.append(
+          "expectedDate",
+          new Date(expectedDate).toISOString()
+        );
+      }
+
+      if (billFile) {
+        dataToSend.append("image", billFile);
+      }
+
+      orderItems.forEach((item, index) => {
+        dataToSend.append(`items[${index}][productId]`, item.productId);
+        dataToSend.append(`items[${index}][quantity]`, item.quantity.toString());
+        dataToSend.append(`items[${index}][unitCost]`, item.unitCost.toString());
+        dataToSend.append(
+          `items[${index}][expirationDate]`,
+          new Date(item.expirationDate).toISOString()
+        );
+      });
+
+      const { success, message, order } = await createOrder(dataToSend);
+      if (success) {
+        addNewOrder(order);
+        toast.success("Order created successfully");
+        resetForm();
+        setOpen(false);
+      } else {
+        setError(message || "Failed to create order. Please try again.");
+      }
+    } catch (err) {
+      console.error("Error creating order:", err);
+      setError("An unexpected error occurred. Please try again.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const resetForm = () => {
+    setSelectedSupplier(null);
+    setOrderItems([
+      { productId: "", quantity: 1, unitCost: 0, expirationDate: new Date() },
+    ]);
+    setSelectedProducts([null]);
+    setFilteredProducts([]);
+    setNotes("");
+    setExpectedDate("");
+    setBillFile(null);
+    setBillPreview(null);
+    setError(null);
+  };
+
+  const handleDialogChange = (isOpen: boolean) => {
+    setOpen(isOpen);
+    if (!isOpen) resetForm();
   };
 
   return (
-    <>
-      <Button
-        variant="outline"
-        className="gap-2 bg-orange-600 text-white hover:bg-orange-700"
-        onClick={() => setOpen(true)}
-      >
-        <Plus className="h-4 w-4" />
-        Manual Order
-      </Button>
-      <Dialog
-        open={open}
-        onOpenChange={(o) => {
-          setOpen(o);
-          if (!o) reset();
-        }}
-      >
-        <DialogContent className="sm:max-w-[800px] max-h-[80vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="font-heading flex items-center gap-2">
-              <Package className="h-5 w-5" />
-              Create Manual Purchase Order
-            </DialogTitle>
-            <DialogDescription>
-              Add supplier and line items, then create an order in status
-              "not assigned".
-            </DialogDescription>
-          </DialogHeader>
+    <Dialog open={open} onOpenChange={handleDialogChange}>
+      <DialogTrigger asChild>
+        <Button variant="default" className="gap-2 rounded-full">
+          <Plus className="h-4 w-4" />
+          Manual Order
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-[800px] max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="font-heading flex items-center gap-2 text-xl">
+            <Package className="h-5 w-5" />
+            Create Manual Order
+          </DialogTitle>
+          <DialogDescription>
+            Create a custom purchase order by selecting supplier and products.
+          </DialogDescription>
+        </DialogHeader>
 
-          <div className="space-y-6">
-            {/* Supplier */}
+        {error && (
+          <div className="bg-destructive/15 text-destructive px-4 py-3 rounded-lg flex items-center gap-2 border border-destructive/20">
+            <AlertCircle className="h-4 w-4" />
+            <span className="text-sm">{error}</span>
+          </div>
+        )}
+
+        {isLoadingProducts && (
+          <div className="bg-blue-50 text-blue-700 px-4 py-3 rounded-lg flex items-center gap-2 border border-blue-200">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            <span className="text-sm">Loading products...</span>
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit} className="space-y-6">
+          {/* Supplier Selection */}
             <div className="space-y-2">
-              <Label>Supplier ID *</Label>
-              <Input
-                value={supplierId}
-                onChange={(e) => setSupplierId(e.target.value)}
-                placeholder="Enter supplier ObjectId"
+              <Label htmlFor="supplier" className="text-sm font-medium">
+                Supplier *
+              </Label>
+              <SupplierSelect
+                selectedSupplier={selectedSupplier}
+                onSupplierChange={handleSupplierChange}
+                placeholder="Select a supplier"
+                className="border-2 border-input focus:ring-2 focus:ring-primary/30 rounded-lg"
               />
+              {selectedSupplier && (
+                <div className="text-sm text-muted-foreground mt-2">
+                  Contact: {selectedSupplier.phone1} • {selectedSupplier.email}
+                </div>
+              )}
+              {selectedSupplier && filteredProducts.length === 0 && (
+                <div className="bg-yellow-50 text-yellow-700 px-4 py-3 rounded-lg flex items-center gap-2 border border-yellow-200 mt-2">
+                  <AlertCircle className="h-4 w-4" />
+                  <span className="text-sm">
+                    No products available for this supplier's categories. Please
+                    select another supplier or add products to matching
+                    categories.
+                  </span>
+                </div>
+              )}
             </div>
 
-            {/* Expected Date */}
-            <div className="space-y-2">
-              <Label>Expected Date (optional)</Label>
-              <Input
-                type="date"
-                value={
-                  expectedDate
-                    ? expectedDate.toISOString().split("T")[0]
-                    : ""
-                }
-                onChange={(e) =>
-                  setExpectedDate(
-                    e.target.value ? new Date(e.target.value) : null
-                  )
-                }
-              />
-            </div>
-
-            {/* Notes */}
-            <div className="space-y-2">
-              <Label>Notes (optional)</Label>
-              <Input
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                placeholder="Optional notes"
-              />
-            </div>
-
-            {/* Items */}
-            <div className="space-y-3">
-              <div className="flex justify-between items-center">
-                <Label>Items *</Label>
+          {/* Order Items */}
+          <Card className="border-0 shadow-sm rounded-xl">
+            <CardHeader className="pb-4">
+              <div className="flex items-center justify-between">
+                <CardTitle className="font-heading text-lg">
+                  Order Items
+                </CardTitle>
                 <Button
                   type="button"
-                  size="sm"
                   variant="outline"
-                  className="gap-2"
-                  onClick={addItem}
+                  size="sm"
+                  onClick={addOrderItem}
+                  disabled={
+                    !selectedSupplier ||
+                    isLoadingProducts ||
+                    filteredProducts.length === 0
+                  }
+                  className="gap-2 rounded-full border-2 border-input"
                 >
-                  <Plus className="h-4 w-4" /> Add Item
+                  <Plus className="h-4 w-4" />
+                  Add Item
                 </Button>
               </div>
-              {items.length === 0 && (
-                <p className="text-xs text-muted-foreground">
-                  No items added yet.
-                </p>
-              )}
-              <div className="space-y-4">
-                {items.map((it, idx) => (
-                  <div
-                    key={idx}
-                    className="grid grid-cols-1 md:grid-cols-5 gap-3 p-3 border rounded-lg relative"
-                  >
-                    <div className="space-y-1">
-                      <Label className="text-xs">Product ID *</Label>
-                      <Input
-                        value={it.productId}
-                        onChange={(e) =>
-                          updateItem(idx, "productId", e.target.value)
-                        }
-                        placeholder="Mongo ObjectId"
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <Label className="text-xs">Name (optional)</Label>
-                      <Input
-                        value={it.name}
-                        onChange={(e) => updateItem(idx, "name", e.target.value)}
-                        placeholder="Display name"
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <Label className="text-xs">Quantity *</Label>
-                      <Input
-                        type="number"
-                        min={1}
-                        value={it.quantity}
-                        onChange={(e) =>
-                          updateItem(idx, "quantity", Number(e.target.value))
-                        }
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <Label className="text-xs">Unit Cost *</Label>
-                      <Input
-                        type="number"
-                        min={0}
-                        step="0.01"
-                        value={it.unitCost}
-                        onChange={(e) =>
-                          updateItem(idx, "unitCost", Number(e.target.value))
-                        }
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <Label className="text-xs">Expiration (opt.)</Label>
-                      <Input
-                        type="date"
-                        value={
-                          it.expirationDate
-                            ? it.expirationDate.toISOString().split("T")[0]
-                            : ""
-                        }
-                        onChange={(e) =>
-                          updateItem(
-                            idx,
-                            "expirationDate",
-                            e.target.value ? new Date(e.target.value) : null
-                          )
-                        }
-                      />
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={() => removeItem(idx)}
-                      className="absolute -top-2 -right-2 bg-destructive text-destructive-foreground rounded-full p-1 hover:opacity-85"
-                      aria-label="Remove item"
+            </CardHeader>
+            <CardContent>
+              {orderItems.length > 0 && (
+                <div className="space-y-4">
+                  {orderItems.map((item, index) => (
+                    <div
+                      key={index}
+                      className="flex flex-col sm:flex-row items-start sm:items-end gap-4 p-4 border rounded-xl bg-card"
                     >
-                      <X className="h-3 w-3" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </div>
+                      <div className="flex-1 space-y-2">
+                        <Label className="text-sm font-medium">Product *</Label>
+                        <ProductSelect
+                          products={filteredProducts}
+                          selectedProduct={selectedProducts[index] || null}
+                          onSelect={(product) =>
+                            handleProductSelect(index, product)
+                          }
+                          placeholder={
+                            selectedSupplier
+                              ? filteredProducts.length > 0
+                                ? "Select product"
+                                : "No products available"
+                              : "Select supplier first"
+                          }
+                          className="border-2 border-input focus:ring-2 focus:ring-primary/30 rounded-lg"
+                          disabled={
+                            !selectedSupplier || filteredProducts.length === 0
+                          }
+                        />
+                      </div>
+                      <div className="w-full sm:w-24 space-y-2">
+                        <Label className="text-sm font-medium">
+                          Quantity *
+                        </Label>
+                        <Input
+                          type="number"
+                          min="1"
+                          value={item.quantity}
+                          onChange={(e) =>
+                            updateOrderItem(
+                              index,
+                              "quantity",
+                              parseInt(e.target.value) || 1
+                            )
+                          }
+                          className="border-2 border-input focus:ring-2 focus:ring-primary/30 rounded-lg py-5"
+                        />
+                      </div>
+
+                      {/* OPTIONAL: Re-enable Unit Price so totalAmount is meaningful */}
+                      {/* <div className="w-full sm:w-28 space-y-2">
+                        <Label className="text-sm font-medium">Unit Price *</Label>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          value={item.unitCost}
+                          onChange={(e) =>
+                            updateOrderItem(
+                              index,
+                              "unitCost",
+                              parseFloat(e.target.value) || 0
+                            )
+                          }
+                          className="border-2 border-input focus:ring-2 focus:ring-primary/30 rounded-lg py-5"
+                        />
+                      </div> */}
+
+                      <div className="w-full sm:w-28 space-y-2">
+                        <Label className="text-sm font-medium">
+                          Expiry Date *
+                        </Label>
+                        <Input
+                          type="date"
+                          value={
+                            item.expirationDate
+                              ? new Date(item.expirationDate)
+                                  .toISOString()
+                                  .split("T")[0]
+                              : ""
+                          }
+                          onChange={(e) =>
+                            updateOrderItem(
+                              index,
+                              "expirationDate",
+                              new Date(e.target.value)
+                            )
+                          }
+                          className="border-2 border-input focus:ring-2 focus:ring-primary/30 rounded-lg py-5"
+                        />
+                      </div>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        onClick={() => removeOrderItem(index)}
+                        disabled={orderItems.length <= 1}
+                        className="text-destructive hover:text-destructive border-2 border-input w-10 h-10 rounded-full mt-4 sm:mt-0"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Bill Upload (currently commented out in original) */}
+          {/* You can re-enable if needed; now uses billPreview object URL directly */}
+
+          {/* Expected Date */}
+          <div className="space-y-2">
+            <Label htmlFor="expectedDate" className="text-sm font-medium">
+              Expected Delivery Date (Optional)
+            </Label>
+            <Input
+              id="expectedDate"
+              type="date"
+              value={expectedDate}
+              onChange={(e) => setExpectedDate(e.target.value)}
+              className="border-2 border-input focus:ring-2 focus:ring-primary/30 rounded-lg"
+            />
           </div>
 
-          <DialogFooter>
+          {/* Notes */}
+          <div className="space-y-2">
+            <Label htmlFor="notes" className="text-sm font-medium">
+              Notes (Optional)
+            </Label>
+            <Textarea
+              id="notes"
+              placeholder="Add any special instructions or notes for this order..."
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              rows={3}
+              className="border-2 border-input focus:ring-2 focus:ring-primary/30 rounded-lg"
+            />
+          </div>
+
+          <DialogFooter className="gap-2">
             <Button
               type="button"
               variant="outline"
-              onClick={() => {
-                setOpen(false);
-              }}
-              disabled={loading}
+              onClick={() => setOpen(false)}
+              disabled={isSubmitting}
+              className="rounded-full px-6"
             >
               Cancel
             </Button>
             <Button
-              type="button"
-              className="bg-orange-600 hover:bg-orange-700 text-white"
-              disabled={!canSubmit || loading}
-              onClick={handleCreate}
+              type="submit"
+              disabled={
+                !selectedSupplier ||
+                orderItems.length === 0 ||
+                isSubmitting ||
+                isLoadingProducts ||
+                filteredProducts.length === 0 ||
+                orderItems.some((item) => !item.productId)
+              }
+              className="rounded-full px-6 bg-primary hover:bg-primary/90"
             >
-              {loading ? (
+              {isSubmitting ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin mr-2" />
                   Creating...
@@ -313,11 +523,10 @@ export function ManualOrderDialog({ addNewOrder }: ManualOrderDialogProps) {
               )}
             </Button>
           </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }
-
 // Dual export to satisfy any import style
 export default ManualOrderDialog;
