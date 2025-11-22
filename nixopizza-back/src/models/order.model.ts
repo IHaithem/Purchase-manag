@@ -1,5 +1,12 @@
-// models/order.model.ts (confirmed removed)
+// models/order.model.ts
 import mongoose, { Schema, Document } from "mongoose";
+
+export interface IStatusHistoryEntry {
+  from: string | null;
+  to: string;
+  at: Date;
+  by?: Schema.Types.ObjectId | null;
+}
 
 export interface IOrder extends Document {
   bon: string;
@@ -18,7 +25,18 @@ export interface IOrder extends Document {
   paidDate?: Date;
   expectedDate?: Date;
   canceledDate?: Date;
+  statusHistory: IStatusHistoryEntry[];
 }
+
+const statusHistorySchema = new Schema<IStatusHistoryEntry>(
+  {
+    from: { type: String, default: null },
+    to: { type: String, required: true },
+    at: { type: Date, required: true },
+    by: { type: Schema.Types.ObjectId, ref: "User", default: null },
+  },
+  { _id: false }
+);
 
 const orderSchema = new Schema<IOrder>(
   {
@@ -35,14 +53,7 @@ const orderSchema = new Schema<IOrder>(
     },
     status: {
       type: String,
-      enum: [
-        "not assigned",
-        "assigned",
-        "pending_review",
-        "verified",
-        "paid",
-        "canceled",
-      ],
+      enum: ["not assigned", "assigned", "pending_review", "verified", "paid", "canceled"],
       default: "not assigned",
     },
     totalAmount: {
@@ -62,6 +73,7 @@ const orderSchema = new Schema<IOrder>(
     paidDate: { type: Date },
     expectedDate: { type: Date },
     canceledDate: { type: Date },
+    statusHistory: { type: [statusHistorySchema], default: [] },
   },
   { timestamps: true }
 );

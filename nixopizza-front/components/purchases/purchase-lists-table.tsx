@@ -6,18 +6,10 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
+  Table, TableBody, TableCell, TableHead, TableHeader, TableRow
 } from "@/components/ui/table";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger
 } from "@/components/ui/dropdown-menu";
 import {
   MoreHorizontal,
@@ -53,19 +45,17 @@ export function PurchaseListsTable({
   setLimit,
 }: {
   purchaseOrders: IOrder[];
-  setPurchaseOrders: any;
+  setPurchaseOrders: React.Dispatch<React.SetStateAction<IOrder[]>>;
   totalPages: number;
   currentPage: number;
-  setCurrentPage: any;
+  setCurrentPage: (p: number) => void;
   limit: number;
-  setLimit: any;
+  setLimit: (l: number) => void;
 }) {
   const [selectedOrder, setSelectedOrder] = useState<IOrder | null>(null);
   const [isOrderDialogOpen, setIsOrderDialogOpen] = useState(false);
   const [isReceiptDialogOpen, setIsReceiptDialogOpen] = useState(false);
   const [isAssignDialogOpen, setIsAssignDialogOpen] = useState(false);
-
-  // Step dialogs
   const [isSubmitDialogOpen, setIsSubmitDialogOpen] = useState(false);
   const [isVerifyDialogOpen, setIsVerifyDialogOpen] = useState(false);
   const [isMarkPaidDialogOpen, setIsMarkPaidDialogOpen] = useState(false);
@@ -92,29 +82,10 @@ export function PurchaseListsTable({
     }
   };
 
-  const handleViewOrder = (order: IOrder) => {
-    setSelectedOrder(order);
-    setIsOrderDialogOpen(true);
-  };
-
-  const handleViewReceipt = (order: IOrder) => {
-    setSelectedOrder(order);
-    setIsReceiptDialogOpen(true);
-  };
-
-  const handleAssignStaff = (order: IOrder) => {
-    setSelectedOrder(order);
-    setIsAssignDialogOpen(true);
-  };
-
   const handleOrderUpdated = (updatedOrder: IOrder) => {
-    setPurchaseOrders((prevOrders: IOrder[]) =>
-      prevOrders.map((ord) => (ord._id === updatedOrder._id ? updatedOrder : ord))
+    setPurchaseOrders(prevOrders =>
+      prevOrders.map(ord => (ord._id === updatedOrder._id ? updatedOrder : ord))
     );
-  };
-
-  const handleExportOrder = (orderId: string) => {
-    console.log("Exporting order:", orderId);
   };
 
   const handleCancelOrder = async (order: IOrder) => {
@@ -134,11 +105,23 @@ export function PurchaseListsTable({
       } else {
         toast.error(message || "Failed to cancel order");
       }
-    } catch (e) {
+    } catch {
       toast.error("Error canceling order");
     } finally {
       setIsCancelLoading(false);
     }
+  };
+
+  const getLatestStatusUpdate = (order: IOrder) => {
+    const dates = [
+      order.assignedDate,
+      order.pendingReviewDate,
+      order.verifiedDate,
+      order.paidDate,
+      order.canceledDate,
+    ].filter(Boolean) as Date[];
+    if (dates.length === 0) return new Date(order.createdAt);
+    return new Date(Math.max(...dates.map(d => new Date(d).getTime())));
   };
 
   const getStatusAction = (order: IOrder) => {
@@ -149,7 +132,10 @@ export function PurchaseListsTable({
             <Button
               size="sm"
               variant="outline"
-              onClick={() => handleAssignStaff(order)}
+              onClick={() => {
+                setSelectedOrder(order);
+                setIsAssignDialogOpen(true);
+              }}
               className="gap-2"
             >
               <UserPlus className="h-3 w-3" />
@@ -290,14 +276,15 @@ export function PurchaseListsTable({
                   <TableHead>Staff</TableHead>
                   <TableHead>Items</TableHead>
                   <TableHead>Total Value</TableHead>
+                  <TableHead>Last Update</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Action</TableHead>
-                  <TableHead className="w-[50px]"></TableHead>
-                  <TableHead className="w-[50px]"></TableHead>
+                  <TableHead></TableHead>
+                  <TableHead></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {purchaseOrders.map((order) => (
+                {purchaseOrders.map(order => (
                   <TableRow key={order._id}>
                     <TableCell>
                       <div className="flex items-center gap-2">
@@ -366,6 +353,9 @@ export function PurchaseListsTable({
                       </div>
                     </TableCell>
                     <TableCell>
+                      {getLatestStatusUpdate(order).toLocaleString("en-GB")}
+                    </TableCell>
+                    <TableCell>
                       <Badge variant={getStatusColor(order.status) as any}>
                         {order.status}
                       </Badge>
@@ -376,7 +366,10 @@ export function PurchaseListsTable({
                         <Button
                           variant="ghost"
                           size="icon"
-                          onClick={() => handleViewReceipt(order)}
+                          onClick={() => {
+                            setSelectedOrder(order);
+                            setIsReceiptDialogOpen(true);
+                          }}
                           title="Preview Receipt"
                         >
                           <Receipt className="h-4 w-4" />
@@ -392,13 +385,18 @@ export function PurchaseListsTable({
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
                           <DropdownMenuItem
-                            onClick={() => handleViewOrder(order)}
+                            onClick={() => {
+                              setSelectedOrder(order);
+                              setIsOrderDialogOpen(true);
+                            }}
                           >
                             <Eye className="h-4 w-4 mr-2" />
                             View Details
                           </DropdownMenuItem>
                           <DropdownMenuItem
-                            onClick={() => handleExportOrder(order._id)}
+                            onClick={() =>
+                              console.log("Export order:", order._id)
+                            }
                           >
                             <Download className="h-4 w-4 mr-2" />
                             Export PDF
@@ -427,7 +425,6 @@ export function PurchaseListsTable({
         </CardContent>
       </Card>
 
-      {/* Dialogs */}
       <PurchaseOrderDialog
         order={selectedOrder}
         open={isOrderDialogOpen}

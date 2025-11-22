@@ -1,6 +1,3 @@
-// Updated: remove inline editing for quantities/unit cost from main dialog.
-// Instead open SubmitReviewDialog (which now handles editing) when clicking "Submit Bill (Review)".
-
 "use client";
 
 import {
@@ -38,7 +35,7 @@ interface PurchaseOrderDialogProps {
   order: IOrder | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  setPurchaseOrders: (updater: (prev: IOrder[]) => IOrder[]) => void;
+  setPurchaseOrders: React.Dispatch<React.SetStateAction<IOrder[]>>;
 }
 
 export function PurchaseOrderDialog({
@@ -56,8 +53,8 @@ export function PurchaseOrderDialog({
   if (!order) return null;
 
   const applyUpdate = (updated: IOrder) => {
-    setPurchaseOrders((prev) =>
-      prev.map((o) => (o._id === updated._id ? updated : o))
+    setPurchaseOrders(prev =>
+      prev.map(o => (o._id === updated._id ? updated : o))
     );
   };
 
@@ -86,20 +83,15 @@ export function PurchaseOrderDialog({
       return;
     }
     setVerifyLoading(true);
-    try {
-      const { success, order: updated, message } = await verifyOrder(order._id);
-      if (success && updated) {
-        toast.success("Order verified");
-        applyUpdate(updated);
-        onOpenChange(false);
-      } else {
-        toast.error(message || "Failed to verify");
-      }
-    } catch {
-      toast.error("Error verifying");
-    } finally {
-      setVerifyLoading(false);
+    const { success, order: updated, message } = await verifyOrder(order._id);
+    if (success && updated) {
+      toast.success("Order verified");
+      applyUpdate(updated);
+      onOpenChange(false);
+    } else {
+      toast.error(message || "Failed to verify");
     }
+    setVerifyLoading(false);
   };
 
   const handleMarkPaid = async () => {
@@ -108,20 +100,15 @@ export function PurchaseOrderDialog({
       return;
     }
     setPaidLoading(true);
-    try {
-      const { success, order: updated, message } = await markOrderPaid(order._id);
-      if (success && updated) {
-        toast.success("Order marked paid");
-        applyUpdate(updated);
-        onOpenChange(false);
-      } else {
-        toast.error(message || "Failed to mark paid");
-      }
-    } catch {
-      toast.error("Error marking paid");
-    } finally {
-      setPaidLoading(false);
+    const { success, order: updated, message } = await markOrderPaid(order._id);
+    if (success && updated) {
+      toast.success("Order marked paid");
+      applyUpdate(updated);
+      onOpenChange(false);
+    } else {
+      toast.error(message || "Failed to mark paid");
     }
+    setPaidLoading(false);
   };
 
   const handleCancel = async () => {
@@ -130,28 +117,26 @@ export function PurchaseOrderDialog({
       return;
     }
     setCancelLoading(true);
-    try {
-      const { success, order: updated, message } = await updateOrder(order._id, {
-        status: "canceled",
-        canceledDate: new Date().toISOString(),
-      });
-      if (success && updated) {
-        toast.success("Order canceled");
-        applyUpdate(updated);
-        onOpenChange(false);
-      } else {
-        toast.error(message || "Failed to cancel");
-      }
-    } catch {
-      toast.error("Error canceling order");
-    } finally {
-      setCancelLoading(false);
+    const { success, order: updated, message } = await updateOrder(order._id, {
+      status: "canceled",
+      canceledDate: new Date().toISOString(),
+    });
+    if (success && updated) {
+      toast.success("Order canceled");
+      applyUpdate(updated);
+      onOpenChange(false);
+    } else {
+      toast.error(message || "Failed to cancel");
     }
+    setCancelLoading(false);
   };
+
+  const formatDateTime = (d?: Date) =>
+    d ? new Date(d).toLocaleString("en-GB") : "—";
 
   return (
     <>
-      <Dialog open={open} onOpenChange={(v) => onOpenChange(v)}>
+      <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="sm:max-w-[900px] max-h-[80vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="font-heading flex items-center gap-2">
@@ -164,13 +149,12 @@ export function PurchaseOrderDialog({
           </DialogHeader>
 
           <div className="space-y-6">
+            {/* Summary */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <Card>
                 <CardContent className="p-4">
                   <div className="text-sm text-muted-foreground">Order ID</div>
-                  <div className="font-mono font-medium">
-                    {order.orderNumber}
-                  </div>
+                  <div className="font-mono font-medium">{order.orderNumber}</div>
                 </CardContent>
               </Card>
               <Card>
@@ -203,6 +187,7 @@ export function PurchaseOrderDialog({
               </Card>
             </div>
 
+            {/* Supplier */}
             <Card>
               <CardHeader>
                 <CardTitle className="font-heading flex items-center gap-2">
@@ -227,18 +212,18 @@ export function PurchaseOrderDialog({
                       {order?.supplierId?.address}
                     </div>
                   </div>
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2 text-sm">
+                  <div className="space-y-2 text-sm">
+                    <div className="flex items-center gap-2">
                       <Mail className="h-3 w-3" />
                       {order?.supplierId?.email}
                     </div>
-                    <div className="flex items-center gap-2 text-sm">
+                    <div className="flex items-center gap-2">
                       <Phone className="h-3 w-3" />
                       {order?.supplierId?.phone1 ||
                         order?.supplierId?.phone2 ||
                         order?.supplierId?.phone3}
                     </div>
-                    <div className="text-sm text-muted-foreground">
+                    <div className="text-muted-foreground">
                       Contact: {order.supplierId?.contactPerson || "N/A"}
                     </div>
                   </div>
@@ -246,6 +231,7 @@ export function PurchaseOrderDialog({
               </CardContent>
             </Card>
 
+            {/* Items */}
             <Card>
               <CardHeader>
                 <CardTitle className="font-heading">Order Items</CardTitle>
@@ -265,31 +251,28 @@ export function PurchaseOrderDialog({
                           <div className="font-medium">
                             {item.productId?.name}
                           </div>
-                          <div className="text-sm text-muted-foreground">
-                            BARCODE: {item.productId?.barcode}
-                          </div>
+                          {item.productId?.barcode && (
+                            <div className="text-sm text-muted-foreground">
+                              BARCODE: {item.productId.barcode}
+                            </div>
+                          )}
                         </div>
                       </div>
-                      <div className="text-right">
-                        <div className="font-medium">
-                          {item.quantity} × {item.unitCost} DA ={" "}
-                          {(item.quantity * item.unitCost).toFixed(2)} DA
-                        </div>
+                      <div className="text-right font-medium">
+                        {item.quantity} × {item.unitCost} DA ={" "}
+                        {(item.quantity * item.unitCost).toFixed(2)} DA
                       </div>
                     </div>
                   ))}
                 </div>
-                <div className="mt-4 pt-4 border-t">
-                  <div className="flex justify-between items-center font-medium">
-                    <span>Total Order Value:</span>
-                    <span className="text-lg">
-                      {order.totalAmount.toFixed(2)} DA
-                    </span>
-                  </div>
+                <div className="mt-4 pt-4 border-t flex justify-between font-medium">
+                  <span>Total Order Value:</span>
+                  <span className="text-lg">{order.totalAmount.toFixed(2)} DA</span>
                 </div>
               </CardContent>
             </Card>
 
+            {/* Bill */}
             <Card>
               <CardHeader>
                 <CardTitle className="font-heading flex items-center gap-2">
@@ -338,6 +321,50 @@ export function PurchaseOrderDialog({
               </CardContent>
             </Card>
 
+            {/* Status History */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="font-heading flex items-center gap-2">
+                  Status History
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {order.statusHistory && order.statusHistory.length > 0 ? (
+                  <ol className="space-y-3">
+                    {order.statusHistory
+                      .slice()
+                      .sort(
+                        (a, b) =>
+                          new Date(a.at).getTime() - new Date(b.at).getTime()
+                      )
+                      .map((h, idx) => (
+                        <li key={idx} className="flex items-start gap-3">
+                          <div className="mt-1 h-2 w-2 rounded-full bg-primary" />
+                          <div>
+                            <div className="text-sm font-medium">
+                              {h.from ? `${h.from} → ${h.to}` : h.to}
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                              {formatDateTime(h.at)}
+                              {h.by && (
+                                <span className="ml-2">
+                                  (by user #{String(h.by).slice(-6)})
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </li>
+                      ))}
+                  </ol>
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    No status transitions recorded.
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Actions */}
             <div className="flex flex-wrap gap-2 justify-end">
               {["not assigned", "assigned", "pending_review"].includes(
                 order.status

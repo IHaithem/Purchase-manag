@@ -1,36 +1,63 @@
 // controllers/order.controller.ts
 // Flow: not assigned -> assigned -> pending_review -> verified -> paid (canceled allowed before verified)
 // Includes item editing in submitOrderForReview (assigned -> pending_review)
+// Adds statusHistory tracking for every status transition
 // Removes deprecated execPopulate usage (Mongoose >=6)
 
 import { Request, Response } from "express";
 import Product from "../models/product.model";
 import Order from "../models/order.model";
-import ProductOrder from "../models/productOrder.model"; // ensure this path points to the ProductOrder model
+import ProductOrder from "../models/productOrder.model";
 import { deleteImage } from "../utils/Delete";
 import crypto from "crypto";
 import { uploadBufferToBlob } from "../utils/blob";
 
+/**
+ * Helper: generate order number like ORD-YYYYMMDD-RAND
+ */
 const generateOrderNumber = (): string => {
   const date = new Date().toISOString().split("T")[0].replace(/-/g, "");
   const rand = Math.floor(1000 + Math.random() * 9000);
   return `ORD-${date}-${rand}`;
 };
 
+/**
+ * Helper: build unique blob key for uploads
+ */
 const buildBlobKey = (originalName: string): string => {
   const ext = (originalName.match(/\.[^/.]+$/) || [".bin"])[0];
   const unique = crypto.randomBytes(8).toString("hex");
   return `${Date.now()}-${unique}${ext}`;
 };
 
+/**
+ * Push a status transition entry to history
+ */
+function pushStatusHistory(
+  order: any,
+  from: string | null,
+  to: string,
+  userId?: string
+) {
+  order.statusHistory = order.statusHistory || [];
+  order.statusHistory.push({
+    from,
+    to,
+    at: new Date(),
+    by: userId || null,
+  });
+}
+
+/**
+ * Populate related docs
+ */
 async function populateOrder(orderDoc: any) {
   if (!orderDoc) return orderDoc;
   await orderDoc.populate([
     { path: "staffId", select: "avatar email fullname" },
     {
       path: "supplierId",
-      select:
-        "email name image contactPerson address phone1 phone2 phone3 city",
+      select: "email name image contactPerson address phone1 phone2 phone3 city",
     },
     {
       path: "items",
@@ -94,7 +121,11 @@ export const createOrder = async (req: Request, res: Response): Promise<void> =>
       notes,
       expectedDate,
       orderNumber: generateOrderNumber(),
+      statusHistory: [],
     });
+
+    // Initial history entry
+    pushStatusHistory(order, null, "not assigned", req.user?.userId);
 
     if (req.file) {
       const key = buildBlobKey(req.file.originalname);
@@ -142,11 +173,13 @@ export const assignOrder = async (req: Request, res: Response): Promise<void> =>
       return;
     }
 
+    const prevStatus = order.status;
     order.staffId = staffId;
     order.status = "assigned";
     order.assignedDate = new Date();
-    await order.save();
+    pushStatusHistory(order, prevStatus, "assigned", req.user?.userId);
 
+    await order.save();
     const populated = await populateOrder(order);
     res
       .status(200)
@@ -168,7 +201,6 @@ export const submitOrderForReview = async (
     const orderId = req.params.orderId;
     const { totalAmount } = req.body;
 
-    // Parse itemsUpdates (array of { itemId, quantity, unitCost })
     let itemsUpdates: { itemId: string; quantity: number; unitCost: number }[] =
       [];
     if (req.body.itemsUpdates) {
@@ -200,7 +232,7 @@ export const submitOrderForReview = async (
       return;
     }
 
-    // Validate & apply item updates
+    // Apply item updates
     if (itemsUpdates.length) {
       const validItemIds = new Set(
         order.items.map((it: any) => it._id.toString())
@@ -229,7 +261,7 @@ export const submitOrderForReview = async (
         await po.save();
       }
 
-      // Refresh order items after updates
+      // Refresh items
       const refreshed = await Order.findById(orderId).populate({
         path: "items",
         populate: { path: "productId" },
@@ -239,7 +271,7 @@ export const submitOrderForReview = async (
       }
     }
 
-    // Replace legacy stored file if needed
+    // Replace legacy bill
     if (order.bon && order.bon.startsWith("/uploads/orders/")) {
       try {
         deleteImage(order.bon);
@@ -254,7 +286,7 @@ export const submitOrderForReview = async (
     );
     order.bon = uploaded.url;
 
-    // Recompute total unless overridden
+    // Recompute total
     let computedTotal = 0;
     for (const item of order.items) {
       const po: any = await ProductOrder.findById((item as any)._id);
@@ -264,8 +296,11 @@ export const submitOrderForReview = async (
       ? parseFloat(totalAmount)
       : parseFloat(computedTotal.toFixed(2));
 
+    const prevStatus = order.status;
     order.status = "pending_review";
     order.pendingReviewDate = new Date();
+    pushStatusHistory(order, prevStatus, "pending_review", req.user?.userId);
+
     await order.save();
 
     const populated = await populateOrder(order);
@@ -304,7 +339,7 @@ export const verifyOrder = async (req: Request, res: Response): Promise<void> =>
       return;
     }
 
-    // Update inventory now
+    // Inventory update
     for (const item of order.items) {
       const po: any = await ProductOrder.findById((item as any)._id);
       if (po) {
@@ -316,8 +351,11 @@ export const verifyOrder = async (req: Request, res: Response): Promise<void> =>
       }
     }
 
+    const prevStatus = order.status;
     order.status = "verified";
     order.verifiedDate = new Date();
+    pushStatusHistory(order, prevStatus, "verified", req.user?.userId);
+
     await order.save();
 
     const populated = await populateOrder(order);
@@ -363,6 +401,12 @@ export const updateOrder = async (req: Request, res: Response): Promise<void> =>
       return;
     }
 
+    // Track previous status for history
+    let prevStatus: string | null = null;
+    if (status && status !== order.status) {
+      prevStatus = order.status;
+    }
+
     if (status === "paid") {
       if (order.status !== "verified") {
         res
@@ -370,8 +414,10 @@ export const updateOrder = async (req: Request, res: Response): Promise<void> =>
           .json({ message: "Order must be verified before paid" });
         return;
       }
+      prevStatus = order.status;
       order.status = "paid";
       order.paidDate = new Date();
+      pushStatusHistory(order, prevStatus, "paid", req.user?.userId);
     } else if (status === "canceled") {
       if (["verified", "paid"].includes(order.status)) {
         res
@@ -379,13 +425,16 @@ export const updateOrder = async (req: Request, res: Response): Promise<void> =>
           .json({ message: "Cannot cancel a verified or paid order" });
         return;
       }
+      prevStatus = order.status;
       order.status = "canceled";
       order.canceledDate = canceledDate ? new Date(canceledDate) : new Date();
+      pushStatusHistory(order, prevStatus, "canceled", req.user?.userId);
     } else if (status && status !== order.status) {
       order.status = status;
       if (status === "assigned") order.assignedDate = new Date();
       if (status === "pending_review") order.pendingReviewDate = new Date();
-      if (status === "verified") order.verifiedDate = new Date(); // (not typical; verify via endpoint)
+      if (status === "verified") order.verifiedDate = new Date(); // (prefer verify endpoint)
+      pushStatusHistory(order, prevStatus, status, req.user?.userId);
     }
 
     if (expectedDate !== undefined) {
@@ -460,7 +509,7 @@ export const getOrdersByFilter = async (
       let supplierIdArray: string[] = [];
       if (Array.isArray(supplierIds)) supplierIdArray = supplierIds as string[];
       else if (typeof supplierIds === "string")
-        supplierIdArray = supplierIds.split(",");
+        supplierIdArray = (supplierIds as string).split(",");
       else supplierIdArray = [String(supplierIds)];
 
       supplierIdArray = supplierIdArray

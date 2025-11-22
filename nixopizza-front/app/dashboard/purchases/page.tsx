@@ -56,6 +56,12 @@ export interface IOrder {
   paidDate?: Date;
   expectedDate?: Date;
   canceledDate?: Date;
+  statusHistory: {
+    from: string | null;
+    to: string;
+    at: Date;        // ISO string from backend, treated as Date via new Date()
+    by?: string | null;
+  }[];
 }
 
 export default function PurchasesPage() {
@@ -90,7 +96,7 @@ export default function PurchasesPage() {
       const params: any = {
         orderNumber: search,
         page: 1,
-        limit: 1000, // large batch for client-side filtering
+        limit: 1000, // fetch large batch for client filtering
         sortBy: sort.sortBy,
         order: sort.order,
       };
@@ -107,10 +113,8 @@ export default function PurchasesPage() {
     fetchOrders();
   }, [search, supplierIds, sort, refreshTrigger]);
 
-  // Client-side filtering (status, supplier, date, search)
   const filteredOrders = useMemo(() => {
     let list = [...allPurchaseOrders];
-
     if (dateRange.from || dateRange.to) {
       list = list.filter(order => {
         const d = new Date(order.createdAt);
@@ -119,26 +123,21 @@ export default function PurchasesPage() {
         return true;
       });
     }
-
     if (status !== "all") {
       const statusSet = status.split(",").map(s => s.trim());
       list = list.filter(o => statusSet.includes(o.status));
     }
-
     if (supplierIds.length > 0) {
       list = list.filter(o => supplierIds.includes(o.supplierId._id));
     }
-
     if (search.trim()) {
       list = list.filter(o =>
         o.orderNumber.toLowerCase().includes(search.toLowerCase())
       );
     }
-
     return list;
   }, [allPurchaseOrders, dateRange, status, supplierIds, search]);
 
-  // Pagination based on filteredOrders
   const paginatedOrders = useMemo(() => {
     const startIndex = (currentPage - 1) * limit;
     const endIndex = startIndex + limit;
