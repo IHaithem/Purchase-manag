@@ -27,6 +27,7 @@ export const assignOrder = async (orderId: string, staffId: string) => {
   }
 };
 
+// Step 1: assigned -> pending_review
 export const submitForReview = async (orderId: string, formData: FormData) => {
   try {
     const { data } = await axiosAPI.post(`/orders/${orderId}/review`, formData);
@@ -36,6 +37,12 @@ export const submitForReview = async (orderId: string, formData: FormData) => {
   }
 };
 
+// Backward compatibility alias (OLD confirm)
+export const confirmOrder = async (orderId: string, formData: FormData) => {
+  return await submitForReview(orderId, formData);
+};
+
+// Step 2: pending_review -> verified
 export const verifyOrder = async (orderId: string) => {
   try {
     const { data } = await axiosAPI.post(`/orders/${orderId}/verify`);
@@ -45,6 +52,7 @@ export const verifyOrder = async (orderId: string) => {
   }
 };
 
+// Step 3: verified -> paid
 export const markOrderPaid = async (orderId: string) => {
   try {
     const { data } = await axiosAPI.put(`/orders/${orderId}`, { status: "paid" });
@@ -54,6 +62,7 @@ export const markOrderPaid = async (orderId: string) => {
   }
 };
 
+// Generic update (expectedDate, cancel, etc.)
 export const updateOrder = async (orderId: string, body: any | FormData) => {
   try {
     const isFormData = body instanceof FormData;
@@ -66,6 +75,7 @@ export const updateOrder = async (orderId: string, body: any | FormData) => {
   }
 };
 
+// Stats
 export const getOrdersStats = async () => {
   try {
     const { data } = await axiosAPI.get("/orders/stats");
